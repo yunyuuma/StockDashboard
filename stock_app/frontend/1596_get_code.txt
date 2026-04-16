@@ -1,0 +1,299 @@
+..Controller.dart
+
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+
+import '../data/company_repository.dart';
+import '../data/price_repository.dart';
+import '../domain/company.dart';
+
+enum FilterTab { all, industry, price, favorite }
+enum SortField { none, ticker, price, change }
+enum SortDir { none, asc, desc }
+
+class CompanySearchController extends ChangeNotifier {
+  final CompanyRepository _repo = CompanyRepository();
+
+  final PriceRepository priceRepo =
+      PriceRepository(proxyBaseUrl: 'https://workers.gikiin67.workers.dev');
+
+  /// 全銘柄
+  List<Company> _all = [];
+
+  /// 表示結果
+  List<Company> _result = [];
+  List<Company> get result => _result;
+
+  /// 取得済み株価キャッシュ
+  final Map<String, Quote> _quotesCache = {};
+
+  /// UI状態
+  FilterTab tab = FilterTab.all;
+
+  String _query = '';
+  String get query => _query;
+
+  String? _industry;
+  String? get industryFilter => _industry;
+
+  int? _priceMin;
+  int? _priceMax;
+  int? get priceMin => _priceMin;
+  int? get priceMax => _priceMax;
+
+  SortField _sortField = SortField.none;
+  SortDir _sortDir = SortDir.none;
+  SortField get sortField => _sortField;
+  SortDir get sortDir => _sortDir;
+
+  Timer? _debounce;
+
+  bool _loading = false;
+  bool get loading => _loading;
+
+  int _done = 0;
+  int get done => _done;
+
+  int _total = 0;
+  int get total => _total;
+
+  String? _lastError;
+  String? get lastError => _lastError;
+
+  Future<void> load() async {
+    _loading = true;
+    _lastError = null;
+    _done = 0;
+    notifyListeners();
+
+    try {
+      final list = await _repo.fetchAll();
+
+      // ignore: avoid_print
+      print('companies loaded = ${list.length}');
+
+      _all = list;
+      _total = list.length;
+      _apply();
+
+      final allCodes = list.map((c) => c.code.trim()).toList();
+
+      // ① まずKVに保存済みの全件を読む
+      try {
+        final snapshotQuotes = await priceRepo.fetchAllQuotes();
+        _quotesCache.addAll(snapshotQuotes);
+
+        // ignore: avoid_print
+        print('snapshot fetched = ${snapshotQuotes.length} / ${allCodes.length}');
+      } catch (e) {
+        // snapshot失敗は致命傷ではないので継続
+        // ignore: avoid_print
+        print('snapshot fetch error: $e');
+      }
+
+      // ② いったん取得済み分を画面に反映
+      _applyQuotesToAll();
+      _done = _quotesCache.length;
+      _apply();
+
+      // ③ 未取得コードだけ更新する
+      final missingCodes =
+          allCodes.where((code) => !_quotesCache.containsKey(code)).toList();
+
+      // ignore: avoid_print
+      print('missing codes = ${missingCodes.length} / ${allCodes.length}');
+
+      if (missingCodes.isNotEmpty) {
+        final refreshed = await priceRepo.refreshQuotes(
+          missingCodes,
+          batchSize: 15,
+          delayBetweenBatches: const Duration(milliseconds: 250),
+          onProgress: (doneFetched, totalFetched) {
+            // 今回refreshで処理した進捗 + 既存キャッシュ件数
+            _done = (_quotesCache.length + doneFetched).clamp(0, _total);
+            notifyListeners();
+          },
+        );
+
+        _quotesCache.addAll(refreshed);
+
+        // ignore: avoid_print
+        print('refreshed fetched = ${refreshed.length}');
+      }
+
+      // ④ 最終反映
+      _applyQuotesToAll();
+      _done = _quotesCache.length;
+
+      // ignore: avoid_print
+      print('quotes total cached = ${_quotesCache.length} / ${allCodes.length}');
+
+      _apply();
+    } catch (e) {
+      _lastError = e.toString();
+      // ignore: avoid_print
+      print('load error: $e');
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
+  /// キャッシュ済み株価を _all に反映
+  void _applyQuotesToAll() {
+    _all = _all.map((c) {
+      final q = _quotesCache[c.code.trim()];
+      if (q == null) return c;
+      return c.copyWith(
+        price: q.price,
+        changePct: q.changePct,
+      );
+    }).toList();
+  }
+
+  /// 必要なら手動でキャッシュを消して最初から
+  void clearQuoteCache() {
+    _quotesCache.clear();
+    _done = 0;
+    notifyListeners();
+  }
+
+  /// 検索
+  void setQuery(String q) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      _query = q.trim();
+      _apply();
+    });
+  }
+
+  /// タブ切替
+  void setTab(FilterTab t) {
+    tab = t;
+    _apply();
+  }
+
+  /// 業種フィルタ
+  void setIndustry(String industry) {
+    _industry = industry;
+    tab = FilterTab.industry;
+    _apply();
+  }
+
+  void clearIndustry() {
+    _industry = null;
+    if (tab == FilterTab.industry) tab = FilterTab.all;
+    _apply();
+  }
+
+  /// 株価レンジ
+  void setPriceRange({required int? min, required int? max}) {
+    _priceMin = min;
+    _priceMax = max;
+    tab = FilterTab.price;
+    _apply();
+  }
+
+  void clearPriceRange() {
+    _priceMin = null;
+    _priceMax = null;
+    if (tab == FilterTab.price) tab = FilterTab.all;
+    _apply();
+  }
+
+  /// お気に入り
+  void toggleFavorite(Company c) {
+    _all = _all.map((x) {
+      if (x.code != c.code) return x;
+      return x.copyWith(favorite: !x.favorite);
+    }).toList();
+    _apply();
+  }
+
+  /// 業種一覧
+  List<String> get industries {
+    final set = <String>{};
+    for (final c in _all) {
+      final v = c.industry.trim();
+      if (v.isNotEmpty) set.add(v);
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
+  /// ソート
+  void toggleSortTicker() => _toggleSort(SortField.ticker);
+  void toggleSortPrice() => _toggleSort(SortField.price);
+  void toggleSortChange() => _toggleSort(SortField.change);
+
+  void _toggleSort(SortField field) {
+    if (_sortField != field) {
+      _sortField = field;
+      _sortDir = SortDir.asc;
+    } else {
+      if (_sortDir == SortDir.asc) {
+        _sortDir = SortDir.desc;
+      } else if (_sortDir == SortDir.desc) {
+        _sortField = SortField.none;
+        _sortDir = SortDir.none;
+      } else {
+        _sortDir = SortDir.asc;
+      }
+    }
+    _apply();
+  }
+
+  /// フィルタ + ソート
+  void _apply() {
+    final q = _normalize(_query);
+
+    var list = _all.where((c) {
+      if (q.isNotEmpty) {
+        final idx = _normalize(
+          '${c.code} ${c.name} ${c.kana} ${c.market} ${c.industry}',
+        );
+        if (!idx.contains(q)) return false;
+      }
+
+      if (_industry != null && _industry!.isNotEmpty) {
+        if (c.industry != _industry) return false;
+      }
+
+      if (_priceMin != null && c.price < _priceMin!) return false;
+      if (_priceMax != null && c.price > _priceMax!) return false;
+
+      if (tab == FilterTab.favorite && !c.favorite) return false;
+
+      return true;
+    }).toList();
+
+    if (_sortField != SortField.none && _sortDir != SortDir.none) {
+      int cmp(Company a, Company b) {
+        switch (_sortField) {
+          case SortField.ticker:
+            return a.code.compareTo(b.code);
+          case SortField.price:
+            return a.price.compareTo(b.price);
+          case SortField.change:
+            return a.changePct.compareTo(b.changePct);
+          case SortField.none:
+            return 0;
+        }
+      }
+
+      list.sort((a, b) => _sortDir == SortDir.asc ? cmp(a, b) : cmp(b, a));
+    }
+
+    _result = list;
+    notifyListeners();
+  }
+
+  static String _normalize(String s) => s.toLowerCase();
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    priceRepo.dispose();
+    super.dispose();
+  }
+}
