@@ -1,107 +1,163 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'company_search_controller.dart';
+import '../data/favorite_api_repository.dart';
+import '../data/price_repository.dart';
+import '../domain/company.dart';
 
-class CompanySearchPage extends ConsumerStatefulWidget {
+class CompanySearchPage extends StatefulWidget {
   const CompanySearchPage({super.key});
 
   @override
-  ConsumerState<CompanySearchPage> createState() => _CompanySearchPageState();
+  State<CompanySearchPage> createState() => _CompanySearchPageState();
 }
 
-class _CompanySearchPageState extends ConsumerState<CompanySearchPage> {
+class _CompanySearchPageState extends State<CompanySearchPage> {
+  static const String workerBaseUrl = 'https://workers.gikiin67.workers.dev';
 
-  bool _loaded = false;
-  RangeValues? _rangeValues;
+  final FavoriteApiRepository favoriteApiRepository = FavoriteApiRepository();
 
-  Icon _sortIcon(SortField field, CompanySearchController controller) {
+  final PriceRepository priceRepository =
+      PriceRepository(proxyBaseUrl: workerBaseUrl);
 
-    if (controller.sortField != field) {
-      return const Icon(Icons.unfold_more, size: 16);
+  final TextEditingController _searchController = TextEditingController();
+
+  List<Company> _all = [];
+  List<Company> _filtered = [];
+
+  bool _loading = true;
+  String? _error;
+
+  String _query = '';
+  String? _marketFilter;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _load();
+
+    _searchController.addListener(() {
+      if (!mounted) return;
+      setState(() {
+        _query = _searchController.text.trim();
+        _applyFilter();
+      });
+    });
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final favorites = await favoriteApiRepository.fetchFavorites(userId: 1);
+      final codes = favorites.map((e) => e.code).toList();
+
+      final quotes = await priceRepository.refreshQuotes(
+        codes,
+        batchSize: 15,
+        delayBetweenBatches: const Duration(milliseconds: 200),
+      );
+
+      final merged = favorites.map((company) {
+        final quote = quotes[company.code];
+        if (quote == null) return company;
+
+        return company.copyWith(
+          price: quote.price,
+          changePct: quote.changePct,
+        );
+      }).toList();
+
+      if (!mounted) return;
+      setState(() {
+        _all = merged;
+        _applyFilter();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
+  }
 
-    if (controller.sortDir == SortDir.asc) {
-      return const Icon(Icons.arrow_upward, size: 16);
-    }
+  void _applyFilter() {
+    final q = _query.toLowerCase();
 
-    if (controller.sortDir == SortDir.desc) {
-      return const Icon(Icons.arrow_downward, size: 16);
-    }
+    _filtered = _all.where((c) {
+      final hit = q.isEmpty ||
+          c.code.toLowerCase().contains(q) ||
+          c.name.toLowerCase().contains(q) ||
+          c.industry.toLowerCase().contains(q) ||
+          c.market.toLowerCase().contains(q);
 
-    return const Icon(Icons.unfold_more, size: 16);
+      final marketOk = _marketFilter == null || c.market == _marketFilter;
+
+      return hit && marketOk;
+    }).toList();
+  }
+
+  void _setMarketFilter(String? market) {
+    setState(() {
+      _marketFilter = market;
+      _applyFilter();
+    });
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    if (!_loaded) {
-      _loaded = true;
-
-      Future.microtask(() async {
-
-        final controller = ref.read(companySearchControllerProvider);
-
-        await controller.refreshFavoriteQuotes();
-
-        if (!mounted) return;
-
-        setState(() {
-          _rangeValues = RangeValues(
-            controller.priceMin,
-            controller.priceMax,
-          );
-        });
-      });
-    }
+  void dispose() {
+    _searchController.dispose();
+    favoriteApiRepository.dispose();
+    priceRepository.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-
-    final controller = ref.watch(companySearchControllerProvider);
-
-    final minRange = controller.priceRangeMin;
-    final maxRange = controller.priceRangeMax;
-
-    _rangeValues ??= RangeValues(
-      controller.priceMin,
-      controller.priceMax,
-    );
+    final markets = _all
+        .map((e) => e.market)
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
 
     return Scaffold(
-
       appBar: AppBar(
-        title: const Text("お気に入り株価一覧"),
+        title: const Text('お気に入り株価一覧'),
         centerTitle: false,
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: FilledButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text("銘柄追加"),
-              onPressed: () {
-                context.go('/');
-              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('再読込'),
+              onPressed: _load,
             ),
-          )
+          ),
         ],
       ),
-
       body: Column(
         children: [
-
-          /// 検索
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
             child: TextField(
+              controller: _searchController,
               textAlign: TextAlign.center,
-              onChanged: controller.setQuery,
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.search),
-                hintText: "銘柄検索",
+                hintText: 'コード・企業名・業種・市場で検索',
                 filled: true,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30),
@@ -109,218 +165,137 @@ class _CompanySearchPageState extends ConsumerState<CompanySearchPage> {
               ),
             ),
           ),
-
-          /// フィルター
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-
-                ChoiceChip(
-                  label: const Text("業種"),
-                  selected: controller.tab == FilterTab.industry,
-                  onSelected: (_) {
-                    controller.setTab(FilterTab.industry);
-                  },
-                ),
-
-                const SizedBox(width: 12),
-
-                ChoiceChip(
-                  label: const Text("株価"),
-                  selected: controller.tab == FilterTab.price,
-                  onSelected: (_) {
-                    controller.setTab(FilterTab.price);
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          /// 並び替え
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Wrap(
-              spacing: 8,
-              alignment: WrapAlignment.center,
-              children: [
-
-                OutlinedButton.icon(
-                  onPressed: controller.toggleSortTicker,
-                  icon: _sortIcon(SortField.ticker, controller),
-                  label: const Text("コード"),
-                ),
-
-                OutlinedButton.icon(
-                  onPressed: controller.toggleSortPrice,
-                  icon: _sortIcon(SortField.price, controller),
-                  label: const Text("株価"),
-                ),
-
-                OutlinedButton.icon(
-                  onPressed: controller.toggleSortChange,
-                  icon: _sortIcon(SortField.change, controller),
-                  label: const Text("前日比"),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          /// 株価レンジ
-          if (controller.tab == FilterTab.price)
-            Column(
-              children: [
-
-                Text(
-                  "¥${_rangeValues!.start.toStringAsFixed(0)} ~ ¥${_rangeValues!.end.toStringAsFixed(0)}",
-                ),
-
-                RangeSlider(
-                  values: _rangeValues!,
-                  min: minRange,
-                  max: maxRange,
-                  onChanged: (values) {
-                    setState(() {
-                      _rangeValues = values;
-                    });
-                  },
-                  onChangeEnd: (values) {
-                    controller.setPriceSliderRange(
-                      values.start,
-                      values.end,
-                    );
-                  },
-                ),
-              ],
-            ),
-
-          const SizedBox(height: 8),
-
-          /// 読み込み
-          if (controller.loading)
+          if (markets.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                "取得中... ${controller.done}/${controller.total}",
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Wrap(
+                spacing: 8,
+                children: [
+                  ChoiceChip(
+                    label: const Text('すべて'),
+                    selected: _marketFilter == null,
+                    onSelected: (_) => _setMarketFilter(null),
+                  ),
+                  ...markets.map(
+                    (market) => ChoiceChip(
+                      label: Text(market),
+                      selected: _marketFilter == market,
+                      onSelected: (_) => _setMarketFilter(market),
+                    ),
+                  ),
+                ],
               ),
             ),
-
-          /// リスト
-          Expanded(
-            child: ListView.separated(
-
-              padding: const EdgeInsets.all(12),
-
-              itemCount: controller.result.length,
-
-              separatorBuilder: (_, __) =>
-                  const SizedBox(height: 8),
-
-              itemBuilder: (context, index) {
-
-                final company = controller.result[index];
-
-                final isPlus = company.changePct >= 0;
-
-                return Card(
-
-                  elevation: 3,
-
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+          const SizedBox(height: 8),
+          if (_loading)
+            const Expanded(
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_error != null)
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    _error!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.red),
                   ),
+                ),
+              ),
+            )
+          else if (_filtered.isEmpty)
+            const Expanded(
+              child: Center(
+                child: Text('お気に入り銘柄がありません'),
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.all(12),
+                itemCount: _filtered.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final company = _filtered[index];
+                  final isPlus = company.changePct >= 0;
 
-                  child: InkWell(
-
-                    borderRadius: BorderRadius.circular(16),
-
-                    onTap: () {
-                      context.go('/stock/${company.code}');
-                    },
-
-                    child: Padding(
-
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-
-                      child: Row(
-                        children: [
-
-                          /// コード
-                          CircleAvatar(
-                            radius: 20,
-                            child: Text(
-                              company.code,
-                              style: const TextStyle(fontSize: 10),
+                  return Card(
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
+                        context.go('/stock/${company.code}');
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 20,
+                              child: Text(
+                                company.code,
+                                style: const TextStyle(fontSize: 10),
+                                textAlign: TextAlign.center,
+                              ),
                             ),
-                          ),
-
-                          const SizedBox(width: 12),
-
-                          /// 名前
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    company.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${company.market} / ${company.industry}',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-
                                 Text(
-                                  company.name,
+                                  '¥${company.price.toStringAsFixed(0)}',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
+                                    fontSize: 16,
                                   ),
                                 ),
-
                                 Text(
-                                  company.industry,
+                                  '${isPlus ? '+' : ''}${company.changePct.toStringAsFixed(2)}%',
                                   style: TextStyle(
-                                    color: Colors.grey[600],
+                                    color: isPlus ? Colors.green : Colors.red,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-
-                          /// 株価
-                          Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.end,
-                            children: [
-
-                              Text(
-                                "¥${company.price.toStringAsFixed(0)}",
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-
-                              Text(
-                                "${isPlus ? "+" : ""}${company.changePct.toStringAsFixed(2)}%",
-                                style: TextStyle(
-                                  color: isPlus
-                                      ? Colors.red
-                                      : Colors.blue,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
         ],
       ),
     );

@@ -65,6 +65,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
           changePct: 0,
           marketCap: 0,
           volume: 0,
+          favorite: false,
         ),
       );
 

@@ -1,0 +1,97 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+import '../domain/company.dart';
+
+class FavoriteApiRepository {
+  FavoriteApiRepository({
+    http.Client? client,
+  }) : _client = client ?? http.Client();
+
+  final http.Client _client;
+
+  static const String baseUrl = 'http://localhost:8080';
+
+  Future<List<Company>> fetchFavorites({required int userId}) async {
+    final uri = Uri.parse('$baseUrl/api/favorites?userId=$userId');
+
+    final res = await _client.get(
+      uri,
+      headers: const {'Accept': 'application/json'},
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception(
+        'favorites fetch failed: status=${res.statusCode}, body=${res.body}',
+      );
+    }
+
+    final decoded = jsonDecode(res.body);
+    if (decoded is! List) {
+      throw Exception('favorites response invalid: $decoded');
+    }
+
+    return decoded.map<Company>((e) {
+      final map = e as Map<String, dynamic>;
+      return Company(
+        code: (map['stockCode'] ?? '').toString(),
+        name: (map['stockName'] ?? '').toString(),
+        kana: '',
+        market: (map['market'] ?? '').toString(),
+        industry: (map['sector'] ?? '').toString(),
+        price: 0,
+        changePct: 0,
+        marketCap: 0,
+        volume: 0,
+        favorite: true,
+      );
+    }).toList();
+  }
+
+  Future<void> addFavorite({
+    required int userId,
+    required String stockCode,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/favorites');
+
+    final res = await _client.post(
+      uri,
+      headers: const {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'userId': userId,
+        'stockCode': stockCode,
+      }),
+    );
+
+    if (res.statusCode != 201) {
+      throw Exception(
+        'favorite add failed: status=${res.statusCode}, body=${res.body}',
+      );
+    }
+  }
+
+  Future<void> deleteFavorite({
+    required int userId,
+    required String stockCode,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/favorites/$stockCode?userId=$userId');
+
+    final res = await _client.delete(
+      uri,
+      headers: const {'Accept': 'application/json'},
+    );
+
+    if (res.statusCode != 204) {
+      throw Exception(
+        'favorite delete failed: status=${res.statusCode}, body=${res.body}',
+      );
+    }
+  }
+
+  void dispose() {
+    _client.close();
+  }
+}
