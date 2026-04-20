@@ -1,1089 +1,836 @@
-import 'dart:convert';
-
+import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
-import '../data/company_repository.dart';
-import '../data/price_repository.dart';
-import '../domain/company.dart';
+import '../data/favorite_api_repository.dart';
+import '../data/stock_detail_api_repository.dart';
+import '../domain/stock_detail_models.dart';
+import 'components/stock_error_view.dart';
+import 'components/stock_loading_view.dart';
+import 'components/stock_section_card.dart';
 
 class StockDetailPage extends StatefulWidget {
-  final String code;
-
   const StockDetailPage({
     super.key,
     required this.code,
   });
 
+  final String code;
+
   @override
   State<StockDetailPage> createState() => _StockDetailPageState();
 }
 
-class _StockDetailPageState extends State<StockDetailPage> {
-  final CompanyRepository _repo = CompanyRepository();
-  final PriceRepository _priceRepo =
-      PriceRepository(proxyBaseUrl: 'https://workers.gikiin67.workers.dev');
+class _StockDetailPageState extends State<StockDetailPage>
+    with SingleTickerProviderStateMixin {
+  final StockDetailApiRepository repository = StockDetailApiRepository();
+  final FavoriteApiRepository favoriteApiRepository = FavoriteApiRepository();
 
-  Company? _company;
-  List<HistoryPoint> _history = [];
+  late final TabController _tabController;
+
+  final int _userId = 1;
 
   bool _loading = true;
-  bool _historyLoading = false;
+  bool _favoriteLoading = false;
+  bool _isFavorite = false;
   String? _error;
+
+  StockDetailSummary? _summary;
+  List<StockChartPoint> _chart = [];
+  List<StockNewsItem> _news = [];
+  StockMetrics? _metrics;
+  StockCompanyInfo? _company;
+
+  String _selectedRange = '6M';
+  String _chartType = 'candle';
 
   @override
   void initState() {
     super.initState();
-    _loadAll();
+    _tabController = TabController(length: 4, vsync: this);
+    _load();
   }
 
-  @override
-  void dispose() {
-    _priceRepo.dispose();
-    super.dispose();
-  }
+  Future<void> _load() async {
+    if (!mounted) return;
 
-  Future<void> _loadAll() async {
     setState(() {
       _loading = true;
       _error = null;
     });
 
     try {
-      final list = await _repo.fetchAll();
+      final results = await Future.wait([
+        repository.fetchSummary(widget.code),
+        repository.fetchChart(widget.code),
+        repository.fetchNews(widget.code),
+        repository.fetchMetrics(widget.code),
+        repository.fetchCompany(widget.code),
+        favoriteApiRepository.fetchFavorites(userId: _userId),
+      ]);
 
-      final baseCompany = list.firstWhere(
-        (x) => x.code == widget.code,
-        orElse: () => Company(
-          code: widget.code,
-          name: '',
-          kana: '',
-          market: '',
-          industry: '',
-          price: 0,
-          changePct: 0,
-          marketCap: 0,
-          volume: 0,
-          favorite: false,
-        ),
-      );
+      final summary = results[0] as StockDetailSummary;
+      final chart = results[1] as List<StockChartPoint>;
+      final news = results[2] as List<StockNewsItem>;
+      final metrics = results[3] as StockMetrics;
+      final company = results[4] as StockCompanyInfo;
+      final favorites = results[5] as List<dynamic>;
 
-      Company company = baseCompany;
-
-      try {
-        final quotes = await _priceRepo.refreshQuotes([widget.code]);
-        final q = quotes[widget.code];
-        if (q != null) {
-          company = company.copyWith(
-            price: q.price,
-            changePct: q.changePct,
-          );
-        }
-      } catch (e) {
-        debugPrint('price load error: $e');
-      }
-
-      await _loadHistory();
-
-      // 履歴の最新出来高を company.volume に反映
-      if (_history.isNotEmpty) {
-        final latest = _history.last;
-        company = company.copyWith(
-          volume: latest.volume,
-        );
-      }
+      final favoriteCodes = favorites.map((e) => e.code as String).toSet();
 
       if (!mounted) return;
 
       setState(() {
+        _summary = summary;
+        _chart = chart;
+        _news = news;
+        _metrics = metrics;
         _company = company;
-        _loading = false;
+        _isFavorite = favoriteCodes.contains(widget.code);
       });
     } catch (e) {
       if (!mounted) return;
-
       setState(() {
         _error = e.toString();
-        _loading = false;
       });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
-  Future<void> _loadHistory() async {
-    _historyLoading = true;
+  Future<void> _toggleFavorite() async {
+    if (_favoriteLoading) return;
+
+    setState(() {
+      _favoriteLoading = true;
+    });
 
     try {
-      final uri = Uri.parse(
-        'https://workers.gikiin67.workers.dev/stock-history',
-      ).replace(
-        queryParameters: {'code': widget.code},
-      );
-
-      final res = await http.get(uri, headers: {
-        'Accept': 'application/json,text/plain,*/*',
-      });
-
-      if (res.statusCode != 200) {
-        throw Exception('history fetch failed: ${res.statusCode}');
-      }
-
-      final decoded = jsonDecode(res.body) as Map<String, dynamic>;
-      final points = (decoded['points'] as List?) ?? const [];
-
-      _history = points.map((e) {
-        final m = e as Map<String, dynamic>;
-        return HistoryPoint(
-          date: (m['date'] ?? '').toString(),
-          open: ((m['open'] ?? 0) as num).toDouble(),
-          high: ((m['high'] ?? 0) as num).toDouble(),
-          low: ((m['low'] ?? 0) as num).toDouble(),
-          close: ((m['close'] ?? 0) as num).toDouble(),
-          volume: ((m['volume'] ?? 0) as num).toDouble(),
+      if (_isFavorite) {
+        await favoriteApiRepository.deleteFavorite(
+          userId: _userId,
+          stockCode: widget.code,
         );
-      }).toList();
+      } else {
+        await favoriteApiRepository.addFavorite(
+          userId: _userId,
+          stockCode: widget.code,
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _isFavorite = !_isFavorite;
+      });
     } catch (e) {
-      debugPrint('history load error: $e');
-      _history = [];
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('お気に入り更新に失敗しました: $e')),
+      );
     } finally {
-      _historyLoading = false;
+      if (mounted) {
+        setState(() {
+          _favoriteLoading = false;
+        });
+      }
     }
   }
 
-  List<double> _buildMiniChartData() {
-    if (_history.isNotEmpty) {
-      final sampled = <double>[];
-      final step = _history.length > 20 ? (_history.length / 20).ceil() : 1;
-      for (int i = 0; i < _history.length; i += step) {
-        sampled.add(_history[i].close);
+  Future<void> _openUrl(String url) async {
+    if (url.isEmpty) return;
+    final uri = Uri.parse(url);
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('URLを開けませんでした')),
+      );
+    }
+  }
+
+  List<StockChartPoint> _filteredChart() {
+    if (_chart.isEmpty) return [];
+    final total = _chart.length;
+
+    switch (_selectedRange) {
+      case '1M':
+        return _chart.skip(math.max(0, total - 22)).toList();
+      case '3M':
+        return _chart.skip(math.max(0, total - 66)).toList();
+      case '1Y':
+        return _chart.skip(math.max(0, total - 240)).toList();
+      case 'ALL':
+        return _chart;
+      case '6M':
+      default:
+        return _chart.skip(math.max(0, total - 120)).toList();
+    }
+  }
+
+  List<double?> _movingAverage(List<StockChartPoint> points, int window) {
+    final result = <double?>[];
+    for (int i = 0; i < points.length; i++) {
+      if (i + 1 < window) {
+        result.add(null);
+        continue;
       }
-      if (sampled.isEmpty || sampled.last != _history.last.close) {
-        sampled.add(_history.last.close);
+      double sum = 0;
+      for (int j = i - window + 1; j <= i; j++) {
+        sum += points[j].close;
       }
-      return sampled;
+      result.add(sum / window);
+    }
+    return result;
+  }
+
+  List<double?> _rsi14(List<StockChartPoint> points) {
+    if (points.length < 15) {
+      return List<double?>.filled(points.length, null);
     }
 
-    final base = (_company?.price ?? 0) <= 0 ? 1000.0 : _company!.price;
-    return [
-      (base * 0.96).toDouble(),
-      (base * 0.98).toDouble(),
-      (base * 0.97).toDouble(),
-      (base * 1.01).toDouble(),
-      (base * 1.03).toDouble(),
-      (base * 1.00).toDouble(),
-      base.toDouble(),
-    ];
+    final result = List<double?>.filled(points.length, null);
+
+    for (int i = 14; i < points.length; i++) {
+      double gain = 0;
+      double loss = 0;
+
+      for (int j = i - 13; j <= i; j++) {
+        final diff = points[j].close - points[j - 1].close;
+        if (diff > 0) {
+          gain += diff;
+        } else {
+          loss += diff.abs();
+        }
+      }
+
+      final avgGain = gain / 14;
+      final avgLoss = loss / 14;
+
+      if (avgLoss == 0) {
+        result[i] = 100;
+      } else {
+        final rs = avgGain / avgLoss;
+        result[i] = 100 - (100 / (1 + rs));
+      }
+    }
+
+    return result;
   }
 
-  List<NewsItem> _buildDemoNews(Company company) {
-    return [
-      NewsItem(
-        title: '${company.name.isEmpty ? company.code : company.name} の最新動向に注目',
-        source: 'デモニュース',
-        date: '2026-03-10',
+  Widget _buildHeader() {
+    final s = _summary!;
+    final isPlus = s.changePct >= 0;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x11000000),
+            blurRadius: 14,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
-      NewsItem(
-        title: '${company.industry.isEmpty ? '業界' : company.industry} の市場環境まとめ',
-        source: 'デモニュース',
-        date: '2026-03-09',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Center(
+                  child: Text(
+                    s.code,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      s.name,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${s.market} / ${s.industry}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: _toggleFavorite,
+                icon: Icon(
+                  _isFavorite ? Icons.star : Icons.star_border,
+                  color: _isFavorite ? Colors.amber : Colors.grey,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _metricHeaderBox(
+                  '現在価格',
+                  s.price > 0 ? '¥${s.price.toStringAsFixed(0)}' : '-',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _metricHeaderBox(
+                  '前日比',
+                  s.price > 0
+                      ? '${isPlus ? '+' : ''}${s.changePct.toStringAsFixed(2)}%'
+                      : '-',
+                  valueColor: isPlus
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFFDC2626),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
-      NewsItem(
-        title: '${company.code} の株価推移と投資家の注目点',
-        source: 'デモニュース',
-        date: '2026-03-08',
-      ),
-    ];
+    );
   }
 
-  Future<void> _refreshPage() async {
-    await _loadAll();
+  Widget _metricHeaderBox(String title, String value, {Color? valueColor}) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: valueColor ?? Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) {
-      return Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
+  Widget _kv(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: TextStyle(color: Colors.grey[600], fontSize: 13),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryTab() {
+    final s = _summary!;
+    final m = _metrics;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      children: [
+        StockSectionCard(
+          title: '当日データ',
+          child: Column(
+            children: [
+              _kv('始値', s.open > 0 ? '¥${s.open.toStringAsFixed(0)}' : '-'),
+              _kv('高値', s.high > 0 ? '¥${s.high.toStringAsFixed(0)}' : '-'),
+              _kv('安値', s.low > 0 ? '¥${s.low.toStringAsFixed(0)}' : '-'),
+              _kv('終値', s.close > 0 ? '¥${s.close.toStringAsFixed(0)}' : '-'),
+              _kv('出来高', s.volume > 0 ? s.volume.toStringAsFixed(0) : '-'),
+            ],
+          ),
         ),
+        const SizedBox(height: 12),
+        StockSectionCard(
+          title: '主要指標',
+          child: Column(
+            children: [
+              _kv('PER', (m != null && m.per > 0) ? m.per.toStringAsFixed(2) : '-'),
+              _kv('PBR', (m != null && m.pbr > 0) ? m.pbr.toStringAsFixed(2) : '-'),
+              _kv('ROE', (m != null && m.roe > 0) ? '${m.roe.toStringAsFixed(2)}%' : '-'),
+              _kv('配当利回り', (m != null && m.dividendYield > 0) ? '${m.dividendYield.toStringAsFixed(2)}%' : '-'),
+              _kv('時価総額', (m != null && m.marketCap > 0) ? m.marketCap.toStringAsFixed(0) : '-'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChartTab() {
+    final points = _filteredChart();
+    final ma5 = _movingAverage(points, 5);
+    final ma25 = _movingAverage(points, 25);
+    final rsi = _rsi14(points);
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      children: [
+        StockSectionCard(
+          title: '表示設定',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 8,
+                children: ['1M', '3M', '6M', '1Y', 'ALL']
+                    .map(
+                      (range) => ChoiceChip(
+                        label: Text(range),
+                        selected: _selectedRange == range,
+                        onSelected: (_) {
+                          setState(() {
+                            _selectedRange = range;
+                          });
+                        },
+                      ),
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: 12),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'candle', label: Text('ローソク足')),
+                  ButtonSegment(value: 'line', label: Text('線グラフ')),
+                ],
+                selected: {_chartType},
+                onSelectionChanged: (value) {
+                  setState(() {
+                    _chartType = value.first;
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        StockSectionCard(
+          title: '価格チャート',
+          child: SizedBox(
+            height: 280,
+            child: points.length < 2
+                ? const Center(child: Text('チャートデータがありません'))
+                : _chartType == 'candle'
+                    ? _buildCandleChart(points)
+                    : _buildLineChart(points),
+          ),
+        ),
+        const SizedBox(height: 12),
+        StockSectionCard(
+          title: '移動平均線（MA5 / MA25）',
+          child: SizedBox(
+            height: 220,
+            child: points.length < 2
+                ? const Center(child: Text('移動平均データがありません'))
+                : _buildMaChart(points, ma5, ma25),
+          ),
+        ),
+        const SizedBox(height: 12),
+        StockSectionCard(
+          title: 'RSI（14）',
+          child: SizedBox(
+            height: 180,
+            child: points.length < 15
+                ? const Center(child: Text('RSIデータがありません'))
+                : _buildRsiChart(points, rsi),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLineChart(List<StockChartPoint> points) {
+    final spots = <FlSpot>[];
+    for (int i = 0; i < points.length; i++) {
+      spots.add(FlSpot(i.toDouble(), points[i].close));
+    }
+
+    return LineChart(
+      LineChartData(
+        minY: points.map((e) => e.low).reduce(math.min) * 0.98,
+        maxY: points.map((e) => e.high).reduce(math.max) * 1.02,
+        gridData: const FlGridData(show: true),
+        titlesData: _chartTitles(points),
+        borderData: FlBorderData(show: true),
+        lineBarsData: [
+          LineChartBarData(
+            isCurved: false,
+            spots: spots,
+            barWidth: 2.5,
+            color: const Color(0xFF2563EB),
+            dotData: const FlDotData(show: false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMaChart(
+    List<StockChartPoint> points,
+    List<double?> ma5,
+    List<double?> ma25,
+  ) {
+    final closeSpots = <FlSpot>[];
+    final ma5Spots = <FlSpot>[];
+    final ma25Spots = <FlSpot>[];
+
+    for (int i = 0; i < points.length; i++) {
+      closeSpots.add(FlSpot(i.toDouble(), points[i].close));
+      if (ma5[i] != null) {
+        ma5Spots.add(FlSpot(i.toDouble(), ma5[i]!));
+      }
+      if (ma25[i] != null) {
+        ma25Spots.add(FlSpot(i.toDouble(), ma25[i]!));
+      }
+    }
+
+    return LineChart(
+      LineChartData(
+        minY: points.map((e) => e.low).reduce(math.min) * 0.98,
+        maxY: points.map((e) => e.high).reduce(math.max) * 1.02,
+        gridData: const FlGridData(show: true),
+        titlesData: _chartTitles(points),
+        borderData: FlBorderData(show: true),
+        lineBarsData: [
+          LineChartBarData(
+            isCurved: false,
+            spots: closeSpots,
+            barWidth: 1.5,
+            color: const Color(0xFF94A3B8),
+            dotData: const FlDotData(show: false),
+          ),
+          LineChartBarData(
+            isCurved: false,
+            spots: ma5Spots,
+            barWidth: 2.0,
+            color: const Color(0xFFF59E0B),
+            dotData: const FlDotData(show: false),
+          ),
+          LineChartBarData(
+            isCurved: false,
+            spots: ma25Spots,
+            barWidth: 2.0,
+            color: const Color(0xFF7C3AED),
+            dotData: const FlDotData(show: false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRsiChart(List<StockChartPoint> points, List<double?> rsi) {
+    final rsiSpots = <FlSpot>[];
+    for (int i = 0; i < rsi.length; i++) {
+      if (rsi[i] != null) {
+        rsiSpots.add(FlSpot(i.toDouble(), rsi[i]!));
+      }
+    }
+
+    return LineChart(
+      LineChartData(
+        minY: 0,
+        maxY: 100,
+        gridData: const FlGridData(show: true),
+        titlesData: _chartTitles(points),
+        borderData: FlBorderData(show: true),
+        extraLinesData: ExtraLinesData(
+          horizontalLines: [
+            HorizontalLine(y: 70, color: Colors.redAccent, strokeWidth: 1),
+            HorizontalLine(y: 30, color: Colors.green, strokeWidth: 1),
+          ],
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            isCurved: false,
+            spots: rsiSpots,
+            barWidth: 2,
+            color: const Color(0xFF0F766E),
+            dotData: const FlDotData(show: false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCandleChart(List<StockChartPoint> points) {
+    final minY = points.map((e) => e.low).reduce(math.min) * 0.98;
+    final maxY = points.map((e) => e.high).reduce(math.max) * 1.02;
+
+    return BarChart(
+      BarChartData(
+        minY: minY,
+        maxY: maxY,
+        alignment: BarChartAlignment.spaceAround,
+        gridData: const FlGridData(show: true),
+        titlesData: _chartTitles(points),
+        borderData: FlBorderData(show: true),
+        barGroups: List.generate(points.length, (i) {
+          final p = points[i];
+          final rise = p.close >= p.open;
+
+          return BarChartGroupData(
+            x: i,
+            barRods: [
+              BarChartRodData(
+                fromY: p.low,
+                toY: p.high,
+                width: 2,
+                color: rise ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+              ),
+              BarChartRodData(
+                fromY: math.min(p.open, p.close),
+                toY: math.max(p.open, p.close),
+                width: 8,
+                color: rise ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+              ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  FlTitlesData _chartTitles(List<StockChartPoint> points) {
+    return FlTitlesData(
+      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+      leftTitles: const AxisTitles(
+        sideTitles: SideTitles(showTitles: true, reservedSize: 44),
+      ),
+      bottomTitles: AxisTitles(
+        sideTitles: SideTitles(
+          showTitles: true,
+          interval: math.max(1, (points.length / 4).floor()).toDouble(),
+          getTitlesWidget: (value, meta) {
+            final i = value.toInt();
+            if (i < 0 || i >= points.length) {
+              return const SizedBox.shrink();
+            }
+            final date = points[i].date;
+            final short = date.length >= 10 ? date.substring(5, 10) : date;
+            return Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                short,
+                style: const TextStyle(fontSize: 10),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNewsTab() {
+    if (_news.isEmpty) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        children: const [
+          StockSectionCard(
+            title: 'ニュース',
+            child: Text('ニュースデータはまだありません。'),
+          ),
+        ],
       );
     }
 
-    if (_error != null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: Text(widget.code),
-        ),
-        body: Center(
-          child: Padding(
-            padding: EdgeInsets.all(16),
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      itemCount: _news.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final item = _news[index];
+        return StockSectionCard(
+          title: item.source.isEmpty ? 'ニュース' : item.source,
+          child: InkWell(
+            onTap: () => _openUrl(item.url),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '読み込み失敗: $_error',
-                  textAlign: TextAlign.center,
+                  item.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
                 ),
-                SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: _loadAll,
-                  child: Text('リトライ'),
+                const SizedBox(height: 8),
+                Text(
+                  item.publishedAt.isNotEmpty ? item.publishedAt : '-',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
                 ),
               ],
             ),
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCompanyTab() {
+    final c = _company;
+    final s = _summary!;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      children: [
+        StockSectionCard(
+          title: '企業情報',
+          child: Column(
+            children: [
+              _kv('企業名', c?.companyName.isNotEmpty == true ? c!.companyName : s.name),
+              _kv('市場', c?.market.isNotEmpty == true ? c!.market : s.market),
+              _kv('業種', c?.industry.isNotEmpty == true ? c!.industry : s.industry),
+              _kv('本社所在地', c?.headquarters.isNotEmpty == true ? c!.headquarters : '-'),
+            ],
+          ),
         ),
-      );
-    }
+        const SizedBox(height: 12),
+        StockSectionCard(
+          title: '概要',
+          child: Text(
+            c?.description.isNotEmpty == true
+                ? c!.description
+                : '企業概要データはまだ登録されていません。',
+          ),
+        ),
+        const SizedBox(height: 12),
+        StockSectionCard(
+          title: 'Webサイト',
+          child: InkWell(
+            onTap: c?.website.isNotEmpty == true ? () => _openUrl(c!.website) : null,
+            child: Text(
+              c?.website.isNotEmpty == true ? c!.website : '-',
+              style: TextStyle(
+                color: c?.website.isNotEmpty == true
+                    ? const Color(0xFF2563EB)
+                    : Colors.black54,
+                decoration: c?.website.isNotEmpty == true
+                    ? TextDecoration.underline
+                    : TextDecoration.none,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-    final company = _company!;
-    final news = _buildDemoNews(company);
+  @override
+  void dispose() {
+    _tabController.dispose();
+    repository.dispose();
+    favoriteApiRepository.dispose();
+    super.dispose();
+  }
 
-    final changeAmount = company.price * company.changePct / 100;
-    final isPlus = company.changePct >= 0;
-    final changeColor = isPlus ? Colors.red : Colors.blue;
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FB),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        title: Text(widget.code),
+      ),
+      body: Builder(
+        builder: (context) {
+          if (_loading) {
+            return const StockLoadingView();
+          }
 
-    return DefaultTabController(
-      length: 5,
-      child: Scaffold(
-        body: NestedScrollView(
-          headerSliverBuilder: (context, innerBoxIsScrolled) {
-            return [
-              SliverAppBar(
-                pinned: true,
-                title: Text(
-                  company.name.isEmpty
-                      ? company.code
-                      : '${company.code} ${company.name}',
-                ),
-                actions: [
-                  Icon(Icons.star_border),
-                  SizedBox(width: 12),
-                  Icon(Icons.share_outlined),
-                  SizedBox(width: 12),
-                  Icon(Icons.notifications_none),
-                  SizedBox(width: 12),
-                ],
-                bottom: TabBar(
-                  isScrollable: true,
-                  tabs: [
+          if (_error != null || _summary == null) {
+            return StockErrorView(
+              title: '詳細データの取得に失敗しました',
+              message: _error ?? '不明なエラー',
+              onRetry: _load,
+            );
+          }
+
+          return Column(
+            children: [
+              _buildHeader(),
+              Container(
+                color: Colors.white,
+                child: TabBar(
+                  controller: _tabController,
+                  labelColor: const Color(0xFF2563EB),
+                  unselectedLabelColor: Colors.black54,
+                  indicatorColor: const Color(0xFF2563EB),
+                  tabs: const [
                     Tab(text: '概要'),
                     Tab(text: 'チャート'),
                     Tab(text: 'ニュース'),
-                    Tab(text: '指標'),
                     Tab(text: '企業情報'),
                   ],
                 ),
               ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '¥${company.price.toStringAsFixed(0)}',
-                        style: TextStyle(
-                          fontSize: 34,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 6),
-                      Text(
-                        '${isPlus ? '+' : ''}${changeAmount.toStringAsFixed(0)} (${company.changePct.toStringAsFixed(2)}%)',
-                        style: TextStyle(
-                          color: changeColor,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 6),
-                      Text(
-                        '${company.market} / ${company.industry}',
-                        style: TextStyle(
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ];
-          },
-          body: TabBarView(
-            children: [
-              RefreshIndicator(
-                onRefresh: _refreshPage,
-                child: _OverviewTab(
-                  company: company,
-                  miniChartData: _buildMiniChartData(),
-                  news: news,
-                ),
-              ),
-              RefreshIndicator(
-                onRefresh: _refreshPage,
-                child: _ChartTab(
-                  history: _history,
-                  loading: _historyLoading,
-                ),
-              ),
-              _NewsTab(news: news),
-              _IndicatorTab(company: company),
-              _CompanyTab(company: company),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _OverviewTab extends StatelessWidget {
-  final Company company;
-  final List<double> miniChartData;
-  final List<NewsItem> news;
-
-  const _OverviewTab({
-    required this.company,
-    required this.miniChartData,
-    required this.news,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isPlus = company.changePct >= 0;
-    final color = isPlus ? Colors.red : Colors.blue;
-
-    return ListView(
-      physics: AlwaysScrollableScrollPhysics(),
-      padding: EdgeInsets.all(16),
-      children: [
-        _SectionCard(
-          title: 'ミニチャート',
-          child: SizedBox(
-            height: 160,
-            child: _MiniChart(
-              data: miniChartData,
-              color: color,
-            ),
-          ),
-        ),
-        SizedBox(height: 12),
-        _SectionCard(
-          title: '株価指標',
-          child: Row(
-            children: [
-              _Kpi(
-                label: '株価',
-                value: '¥${company.price.toStringAsFixed(0)}',
-              ),
-              SizedBox(width: 12),
-              _Kpi(
-                label: '前日比',
-                value:
-                    '${isPlus ? '+' : ''}${company.changePct.toStringAsFixed(2)}%',
-                valueColor: color,
-              ),
-              SizedBox(width: 12),
-              _Kpi(
-                label: '出来高',
-                value: company.volume > 0
-                    ? company.volume.toStringAsFixed(0)
-                    : '未取得',
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: 12),
-        _SectionCard(
-          title: '企業情報',
-          child: Column(
-            children: [
-              _Info(label: '市場', value: company.market),
-              Divider(height: 20),
-              _Info(label: '業種', value: company.industry),
-            ],
-          ),
-        ),
-        SizedBox(height: 12),
-        _SectionCard(
-          title: '関連ニュース',
-          child: Column(
-            children: news.take(3).map((item) {
-              return Padding(
-                padding: EdgeInsets.only(bottom: 8),
-                child: _NewsCard(item: item),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-enum ChartRange { m1, m6, y1, y2 }
-
-class _ChartTab extends StatefulWidget {
-  final List<HistoryPoint> history;
-  final bool loading;
-
-  const _ChartTab({
-    required this.history,
-    required this.loading,
-  });
-
-  @override
-  State<_ChartTab> createState() => _ChartTabState();
-}
-
-class _ChartTabState extends State<_ChartTab> {
-  ChartRange _range = ChartRange.y2;
-
-  List<HistoryPoint> _filteredHistory(List<HistoryPoint> history) {
-    if (history.isEmpty) return [];
-
-    final now = DateTime.now();
-    late DateTime from;
-
-    switch (_range) {
-      case ChartRange.m1:
-        from = DateTime(now.year, now.month - 1, now.day);
-        break;
-      case ChartRange.m6:
-        from = DateTime(now.year, now.month - 6, now.day);
-        break;
-      case ChartRange.y1:
-        from = DateTime(now.year - 1, now.month, now.day);
-        break;
-      case ChartRange.y2:
-        from = DateTime(now.year - 2, now.month, now.day);
-        break;
-    }
-
-    final filtered = history.where((e) {
-      final d = DateTime.tryParse(e.date);
-      if (d == null) return false;
-      return !d.isBefore(from);
-    }).toList();
-
-    return filtered.isEmpty ? history : filtered;
-  }
-
-  List<FlSpot> _movingAverage(List<HistoryPoint> data, int period) {
-    if (data.length < period) return [];
-
-    final spots = <FlSpot>[];
-
-    for (int i = period - 1; i < data.length; i++) {
-      double sum = 0;
-      for (int j = i - period + 1; j <= i; j++) {
-        sum += data[j].close;
-      }
-      final avg = sum / period;
-      spots.add(FlSpot(i.toDouble(), avg));
-    }
-
-    return spots;
-  }
-
-  Widget _rangeChip(String label, ChartRange range) {
-    return ChoiceChip(
-      label: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 8),
-        child: Text(label),
-      ),
-      selected: _range == range,
-      shape: StadiumBorder(),
-      onSelected: (_) {
-        setState(() {
-          _range = range;
-        });
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.loading) {
-      return ListView(
-        physics: AlwaysScrollableScrollPhysics(),
-        children: [
-          SizedBox(height: 240),
-          Center(child: CircularProgressIndicator()),
-        ],
-      );
-    }
-
-    if (widget.history.isEmpty) {
-      return ListView(
-        physics: AlwaysScrollableScrollPhysics(),
-        children: [
-          SizedBox(height: 240),
-          Center(child: Text('2年チャートのデータがありません')),
-        ],
-      );
-    }
-
-    final history = _filteredHistory(widget.history);
-
-    final minPrice = history.map((e) => e.low).reduce((a, b) => a < b ? a : b);
-    final maxPrice =
-        history.map((e) => e.high).reduce((a, b) => a > b ? a : b);
-    final maxVolume =
-        history.map((e) => e.volume).reduce((a, b) => a > b ? a : b);
-
-    final interval = ((maxPrice - minPrice) / 4).abs();
-    final safeInterval = interval == 0 ? 1.0 : interval;
-
-    final candleSpots = List.generate(history.length, (i) {
-      final h = history[i];
-      return CandlestickSpot(
-        x: i.toDouble(),
-        open: h.open,
-        high: h.high,
-        low: h.low,
-        close: h.close,
-      );
-    });
-
-    final ma5 = _movingAverage(history, 5);
-    final ma25 = _movingAverage(history, 25);
-    final ma75 = _movingAverage(history, 75);
-
-    final volumeGroups = List.generate(history.length, (i) {
-      final h = history[i];
-      final up = h.close >= h.open;
-
-      return BarChartGroupData(
-        x: i,
-        barRods: [
-          BarChartRodData(
-            toY: h.volume,
-            width: 4,
-            color: up
-                ? Colors.red.withValues(alpha: 0.7)
-                : Colors.blue.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.zero,
-          ),
-        ],
-      );
-    });
-
-    return ListView(
-      physics: AlwaysScrollableScrollPhysics(),
-      padding: EdgeInsets.all(16),
-      children: [
-        _SectionCard(
-          title: '株価チャート',
-          child: Column(
-            children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _rangeChip('1M', ChartRange.m1),
-                  _rangeChip('6M', ChartRange.m6),
-                  _rangeChip('1Y', ChartRange.y1),
-                  _rangeChip('2Y', ChartRange.y2),
-                ],
-              ),
-              SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                children: [
-                  _LegendDot(color: Colors.orange, label: 'MA5'),
-                  _LegendDot(color: Colors.green, label: 'MA25'),
-                  _LegendDot(color: Colors.purple, label: 'MA75'),
-                ],
-              ),
-              SizedBox(height: 16),
-
-              // ローソク足
-              SizedBox(
-                height: 300,
-                child: CandlestickChart(
-                  CandlestickChartData(
-                    minY: minPrice * 0.98,
-                    maxY: maxPrice * 1.02,
-                    titlesData: FlTitlesData(
-                      topTitles: AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      rightTitles: AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 42,
-                          interval: safeInterval,
-                          getTitlesWidget: (value, meta) {
-                            return Text(
-                              value.toStringAsFixed(0),
-                              style: TextStyle(fontSize: 10),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    borderData: FlBorderData(show: false),
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      horizontalInterval: safeInterval,
-                    ),
-                    candlestickSpots: candleSpots,
-                  ),
-                ),
-              ),
-
-              SizedBox(height: 16),
-
-              // 移動平均線
-              SizedBox(
-                height: 220,
-                child: LineChart(
-                  LineChartData(
-                    minY: minPrice * 0.98,
-                    maxY: maxPrice * 1.02,
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      horizontalInterval: safeInterval,
-                    ),
-                    titlesData: FlTitlesData(
-                      topTitles: AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      rightTitles: AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 42,
-                          interval: safeInterval,
-                          getTitlesWidget: (value, meta) {
-                            return Text(
-                              value.toStringAsFixed(0),
-                              style: TextStyle(fontSize: 10),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    borderData: FlBorderData(show: false),
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: ma5,
-                        isCurved: true,
-                        color: Colors.orange,
-                        barWidth: 2,
-                        dotData: FlDotData(show: false),
-                      ),
-                      LineChartBarData(
-                        spots: ma25,
-                        isCurved: true,
-                        color: Colors.green,
-                        barWidth: 2,
-                        dotData: FlDotData(show: false),
-                      ),
-                      LineChartBarData(
-                        spots: ma75,
-                        isCurved: true,
-                        color: Colors.purple,
-                        barWidth: 2,
-                        dotData: FlDotData(show: false),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              SizedBox(height: 16),
-
-              // 出来高
-              SizedBox(
-                height: 180,
-                child: BarChart(
-                  BarChartData(
-                    maxY: maxVolume * 1.1,
-                    gridData: FlGridData(show: false),
-                    titlesData: FlTitlesData(
-                      topTitles: AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      rightTitles: AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 42,
-                          getTitlesWidget: (value, meta) {
-                            if (value == 0) return SizedBox.shrink();
-                            return Text(
-                              value.toStringAsFixed(0),
-                              style: TextStyle(fontSize: 10),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    borderData: FlBorderData(show: false),
-                    barGroups: volumeGroups,
-                  ),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildSummaryTab(),
+                    _buildChartTab(),
+                    _buildNewsTab(),
+                    _buildCompanyTab(),
+                  ],
                 ),
               ),
             ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _NewsTab extends StatelessWidget {
-  final List<NewsItem> news;
-
-  const _NewsTab({
-    required this.news,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: EdgeInsets.all(16),
-      itemCount: news.length,
-      separatorBuilder: (_, _) => SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        return _NewsCard(item: news[index]);
-      },
-    );
-  }
-}
-
-class _IndicatorTab extends StatelessWidget {
-  final Company company;
-
-  const _IndicatorTab({
-    required this.company,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      physics: AlwaysScrollableScrollPhysics(),
-      padding: EdgeInsets.all(16),
-      children: [
-        _SectionCard(
-          title: '指標',
-          child: Column(
-            children: [
-              _Info(
-                label: '時価総額',
-                value: company.marketCap > 0
-                    ? company.marketCap.toStringAsFixed(0)
-                    : '未取得',
-              ),
-              Divider(height: 20),
-              _Info(
-                label: '出来高',
-                value: company.volume > 0
-                    ? company.volume.toStringAsFixed(0)
-                    : '未取得',
-              ),
-              Divider(height: 20),
-              _Info(label: 'PER', value: '今後追加'),
-              Divider(height: 20),
-              _Info(label: 'PBR', value: '今後追加'),
-              Divider(height: 20),
-              _Info(label: '配当利回り', value: '今後追加'),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CompanyTab extends StatelessWidget {
-  final Company company;
-
-  const _CompanyTab({
-    required this.company,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      physics: AlwaysScrollableScrollPhysics(),
-      padding: EdgeInsets.all(16),
-      children: [
-        _SectionCard(
-          title: '企業情報',
-          child: Column(
-            children: [
-              _Info(label: '企業名', value: company.name),
-              Divider(height: 20),
-              _Info(label: '市場', value: company.market),
-              Divider(height: 20),
-              _Info(label: '業種', value: company.industry),
-              Divider(height: 20),
-              _Info(label: 'ティッカー', value: company.code),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  final String title;
-  final Widget child;
-
-  const _SectionCard({
-    required this.title,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 12),
-            child,
-          ],
-        ),
+          );
+        },
       ),
     );
   }
-}
-
-class _MiniChart extends StatelessWidget {
-  final List<double> data;
-  final Color color;
-
-  const _MiniChart({
-    required this.data,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return LineChart(
-      LineChartData(
-        gridData: FlGridData(show: false),
-        titlesData: FlTitlesData(show: false),
-        borderData: FlBorderData(show: false),
-        lineBarsData: [
-          LineChartBarData(
-            spots: List.generate(
-              data.length,
-              (i) => FlSpot(i.toDouble(), data[i]),
-            ),
-            isCurved: true,
-            color: color,
-            dotData: FlDotData(show: false),
-            barWidth: 3,
-            belowBarData: BarAreaData(
-              show: true,
-              color: color.withValues(alpha: 0.10),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Kpi extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color? valueColor;
-
-  const _Kpi({
-    required this.label,
-    required this.value,
-    this.valueColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          children: [
-            Text(label),
-            SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: valueColor,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Info extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _Info({
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 110,
-          child: Text(
-            label,
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            textAlign: TextAlign.end,
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _LegendDot extends StatelessWidget {
-  final Color color;
-  final String label;
-
-  const _LegendDot({
-    required this.color,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
-        ),
-        SizedBox(width: 6),
-        Text(label),
-      ],
-    );
-  }
-}
-
-class _NewsCard extends StatelessWidget {
-  final NewsItem item;
-
-  const _NewsCard({
-    required this.item,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: ListTile(
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 8,
-        ),
-        title: Text(
-          item.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Padding(
-          padding: EdgeInsets.only(top: 6),
-          child: Text('${item.source}  ・  ${item.date}'),
-        ),
-        trailing: Icon(Icons.open_in_new, size: 18),
-      ),
-    );
-  }
-}
-
-class HistoryPoint {
-  final String date;
-  final double open;
-  final double high;
-  final double low;
-  final double close;
-  final double volume;
-
-  HistoryPoint({
-    required this.date,
-    required this.open,
-    required this.high,
-    required this.low,
-    required this.close,
-    required this.volume,
-  });
-}
-
-class NewsItem {
-  final String title;
-  final String source;
-  final String date;
-
-  NewsItem({
-    required this.title,
-    required this.source,
-    required this.date,
-  });
 }

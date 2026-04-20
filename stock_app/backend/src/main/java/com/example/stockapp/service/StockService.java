@@ -8,7 +8,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -20,19 +24,35 @@ public class StockService {
     private volatile List<StockResponse> cachedStocks = List.of();
     private volatile Instant cachedAt = Instant.EPOCH;
 
-    public List<StockResponse> getStocks(int page, int size) {
+    public List<StockResponse> getStocks(int page, int size, String q, String market) {
         List<StockResponse> all = getAllStocksCached();
 
-        int safePage = Math.max(page, 0);
-        int safeSize = Math.max(1, Math.min(size, 200));
+        String keyword = q == null ? "" : q.trim().toLowerCase();
+        String marketFilter = market == null ? "" : market.trim();
 
-        int start = safePage * safeSize;
-        if (start >= all.size()) {
+        List<StockResponse> filtered = all.stream()
+                .filter(s -> keyword.isEmpty()
+                        || s.getCode().toLowerCase().contains(keyword)
+                        || s.getName().toLowerCase().contains(keyword)
+                        || s.getSector().toLowerCase().contains(keyword)
+                        || s.getMarket().toLowerCase().contains(keyword))
+                .filter(s -> marketFilter.isEmpty() || s.getMarket().equals(marketFilter))
+                .toList();
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(1, Math.min(size, 50));
+
+        int from = safePage * safeSize;
+        if (from >= filtered.size()) {
             return List.of();
         }
 
-        int end = Math.min(start + safeSize, all.size());
-        return all.subList(start, end);
+        int to = Math.min(from + safeSize, filtered.size());
+        return filtered.subList(from, to);
+    }
+
+    public List<StockResponse> getAllStocks() {
+        return getAllStocksCached();
     }
 
     public synchronized void reloadCache() {
@@ -82,12 +102,19 @@ public class StockService {
                 if (code.isEmpty()) {
                     continue;
                 }
+
+                if ("TOKYO PRO MARKET".equals(market)) {
+                    continue;
+                }
+
                 if ("その他".equals(market)) {
                     continue;
                 }
+
                 if (name.isEmpty() || market.isEmpty() || sector.isEmpty()) {
                     continue;
                 }
+
                 if (!seenCodes.add(code)) {
                     continue;
                 }
@@ -99,7 +126,6 @@ public class StockService {
                 break;
             }
 
-            // 念のため上限
             if (pageCount >= 100) {
                 break;
             }

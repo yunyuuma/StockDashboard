@@ -16,31 +16,22 @@ class App extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
 
-    final router = GoRouter(
+    final GoRouter router = GoRouter(
+      initialLocation: '/stocks',
       routes: [
-
-        // 最初の画面（お気に入り登録）
-        GoRoute(
-          path: '/',
-          builder: (context, state) => const CompanyRegisterPage(),
-        ),
-
-        // 株価画面
         GoRoute(
           path: '/stocks',
+          builder: (context, state) => const CompanyRegisterPage(),
+        ),
+        GoRoute(
+          path: '/favorites',
           builder: (context, state) => const CompanySearchPage(),
         ),
-
-        // 銘柄詳細
         GoRoute(
           path: '/stock/:code',
           builder: (context, state) {
-
             final code = state.pathParameters['code']!;
-
-            return StockDetailPage(
-              code: code,
-            );
+            return StockDetailPage(code: code);
           },
         ),
       ],

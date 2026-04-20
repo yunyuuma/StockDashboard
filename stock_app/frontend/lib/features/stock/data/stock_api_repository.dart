@@ -14,9 +14,18 @@ class StockApiRepository {
 
   Future<List<Company>> fetchStocks({
     required int page,
-    int size = 100,
+    int size = 30,
+    String? query,
+    String? market,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/stocks?page=$page&size=$size');
+    final uri = Uri.parse('$baseUrl/api/stocks').replace(
+      queryParameters: {
+        'page': '$page',
+        'size': '$size',
+        if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+        if (market != null && market.trim().isNotEmpty) 'market': market.trim(),
+      },
+    );
 
     final res = await _client.get(
       uri,
@@ -36,7 +45,6 @@ class StockApiRepository {
 
     return decoded.map<Company>((e) {
       final map = e as Map<String, dynamic>;
-
       return Company(
         code: (map['code'] ?? '').toString(),
         name: (map['name'] ?? '').toString(),

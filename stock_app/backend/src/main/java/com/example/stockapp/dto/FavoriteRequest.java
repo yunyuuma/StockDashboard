@@ -5,7 +5,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class FavoriteCreateRequest {
-    private Long userId;
+public class FavoriteRequest {
+    private Integer userId;
     private String stockCode;
 }

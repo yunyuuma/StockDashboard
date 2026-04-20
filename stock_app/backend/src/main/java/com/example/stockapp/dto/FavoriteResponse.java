@@ -6,12 +6,10 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public class FavoriteResponse {
-
-    private Long id;
-    private Long userId;
-    private String stockCode;
-    private String stockName;
+    private Integer id;
+    private Integer userId;
+    private String code;
+    private String name;
     private String market;
     private String sector;
-    private String createdAt;
 }

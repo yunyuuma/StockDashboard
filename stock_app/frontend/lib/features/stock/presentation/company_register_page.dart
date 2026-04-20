@@ -1,10 +1,16 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/favorite_api_repository.dart';
-import '../data/price_repository.dart';
 import '../data/stock_api_repository.dart';
 import '../domain/company.dart';
+import 'components/stock_empty_view.dart';
+import 'components/stock_error_view.dart';
+import 'components/stock_list_card.dart';
+import 'components/stock_loading_view.dart';
+import 'components/stock_market_chip_row.dart';
+import 'components/stock_search_header.dart';
 
 class CompanyRegisterPage extends StatefulWidget {
   const CompanyRegisterPage({super.key});
@@ -17,20 +23,15 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
   final StockApiRepository stockApiRepository = StockApiRepository();
   final FavoriteApiRepository favoriteApiRepository = FavoriteApiRepository();
 
-  static const String workerBaseUrl = 'https://workers.gikiin67.workers.dev';
-
-  final PriceRepository priceRepository =
-      PriceRepository(proxyBaseUrl: workerBaseUrl);
-
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
   final int _userId = 1;
-  final int _pageSize = 100;
+  final int _pageSize = 30;
 
   List<Company> _all = [];
-  List<Company> _filtered = [];
   Set<String> _favoriteCodes = {};
+  List<String> _markets = [];
 
   bool _initialLoading = true;
   bool _pageLoading = false;
@@ -41,18 +42,21 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
   int _page = 0;
   String _query = '';
   String? _marketFilter;
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
-
     _loadInitial();
 
     _searchController.addListener(() {
-      if (!mounted) return;
-      setState(() {
-        _query = _searchController.text.trim();
-        _applyFilter();
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(milliseconds: 350), () {
+        if (!mounted) return;
+        setState(() {
+          _query = _searchController.text.trim();
+        });
+        _reloadByCondition();
       });
     });
 
@@ -73,13 +77,11 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
       _page = 0;
       _hasMore = true;
       _all = [];
-      _filtered = [];
     });
 
     try {
       final favorites =
           await favoriteApiRepository.fetchFavorites(userId: _userId);
-
       _favoriteCodes = favorites.map((e) => e.code).toSet();
 
       await _loadNextPage(resetError: false);
@@ -97,22 +99,42 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
     }
   }
 
-  Future<void> _loadNextPage({bool resetError = true}) async {
-    if (_pageLoading || !_hasMore) return;
+  Future<void> _reloadByCondition() async {
+    if (!mounted) return;
+
+    setState(() {
+      _page = 0;
+      _hasMore = true;
+      _all = [];
+      _error = null;
+      _initialLoading = true;
+    });
+
+    await _loadNextPage(resetError: false);
 
     if (mounted) {
       setState(() {
-        _pageLoading = true;
-        if (resetError) {
-          _error = null;
-        }
+        _initialLoading = false;
       });
     }
+  }
+
+  Future<void> _loadNextPage({bool resetError = true}) async {
+    if (_pageLoading || !_hasMore) return;
+
+    setState(() {
+      _pageLoading = true;
+      if (resetError) {
+        _error = null;
+      }
+    });
 
     try {
       final pageStocks = await stockApiRepository.fetchStocks(
         page: _page,
         size: _pageSize,
+        query: _query,
+        market: _marketFilter,
       );
 
       if (pageStocks.isEmpty) {
@@ -123,20 +145,9 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
         return;
       }
 
-      final codes = pageStocks.map((e) => e.code).toList();
-
-      final quotes = await priceRepository.refreshQuotes(
-        codes,
-        batchSize: 15,
-        delayBetweenBatches: const Duration(milliseconds: 200),
-      );
-
       final merged = pageStocks.map((stock) {
-        final quote = quotes[stock.code];
         return stock.copyWith(
           favorite: _favoriteCodes.contains(stock.code),
-          price: quote?.price ?? 0,
-          changePct: quote?.changePct ?? 0,
         );
       }).toList();
 
@@ -148,7 +159,14 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
         if (merged.length < _pageSize) {
           _hasMore = false;
         }
-        _applyFilter();
+
+        final newMarkets = _all
+            .map((e) => e.market)
+            .where((e) => e.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+        _markets = newMarkets;
       });
     } catch (e) {
       if (!mounted) return;
@@ -162,29 +180,6 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
         });
       }
     }
-  }
-
-  void _applyFilter() {
-    final q = _query.toLowerCase();
-
-    _filtered = _all.where((c) {
-      final hit = q.isEmpty ||
-          c.code.toLowerCase().contains(q) ||
-          c.name.toLowerCase().contains(q) ||
-          c.industry.toLowerCase().contains(q) ||
-          c.market.toLowerCase().contains(q);
-
-      final marketOk = _marketFilter == null || c.market == _marketFilter;
-
-      return hit && marketOk;
-    }).toList();
-  }
-
-  void _setMarketFilter(String? market) {
-    setState(() {
-      _marketFilter = market;
-      _applyFilter();
-    });
   }
 
   Future<void> _toggleFavorite(Company company) async {
@@ -218,7 +213,6 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
           }
           return e;
         }).toList();
-        _applyFilter();
       });
     } catch (e) {
       if (!mounted) return;
@@ -234,215 +228,25 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
     }
   }
 
-  Color _marketChipColor(String market) {
-    switch (market) {
-      case 'プライム':
-        return const Color(0xFFE8F1FF);
-      case 'スタンダード':
-        return const Color(0xFFF3F4F6);
-      case 'グロース':
-        return const Color(0xFFEAFBF1);
-      default:
-        return const Color(0xFFF4F4F5);
-    }
-  }
-
-  Color _marketTextColor(String market) {
-    switch (market) {
-      case 'プライム':
-        return const Color(0xFF2563EB);
-      case 'スタンダード':
-        return const Color(0xFF4B5563);
-      case 'グロース':
-        return const Color(0xFF16A34A);
-      default:
-        return const Color(0xFF52525B);
-    }
-  }
-
-  Widget _buildCard(Company company) {
-    final isPlus = company.changePct >= 0;
-
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      elevation: 2,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: () {
-          context.go('/stock/${company.code}');
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Center(
-                  child: Text(
-                    company.code,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            company.name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              height: 1.25,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: () => _toggleFavorite(company),
-                          icon: Icon(
-                            company.favorite
-                                ? Icons.star
-                                : Icons.star_border,
-                            color: company.favorite ? Colors.amber : Colors.grey,
-                          ),
-                          splashRadius: 20,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _marketChipColor(company.market),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            company.market,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: _marketTextColor(company.market),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            company.industry,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[700],
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '現在価格',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                company.price > 0
-                                    ? '¥${company.price.toStringAsFixed(0)}'
-                                    : '-',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 20,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              '前日比',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              company.price > 0
-                                  ? '${isPlus ? '+' : ''}${company.changePct.toStringAsFixed(2)}%'
-                                  : '-',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: isPlus
-                                    ? const Color(0xFF16A34A)
-                                    : const Color(0xFFDC2626),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  void _setMarketFilter(String? market) {
+    setState(() {
+      _marketFilter = market;
+    });
+    _reloadByCondition();
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     _scrollController.dispose();
     stockApiRepository.dispose();
     favoriteApiRepository.dispose();
-    priceRepository.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final markets = _all
-        .map((e) => e.market)
-        .where((e) => e.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
-
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: AppBar(
@@ -457,6 +261,23 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
           ),
         ),
         actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: OutlinedButton.icon(
+              onPressed: () {
+                context.go('/favorites');
+              },
+              icon: const Icon(Icons.star, size: 18),
+              label: const Text('お気に入り'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.black87,
+                side: const BorderSide(color: Color(0xFFD1D5DB)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: FilledButton.icon(
@@ -476,138 +297,40 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
       ),
       body: Column(
         children: [
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-            child: Column(
-              children: [
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'コード・企業名・業種・市場で検索',
-                    prefixIcon: const Icon(Icons.search),
-                    filled: true,
-                    fillColor: const Color(0xFFF8FAFC),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 14,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
-                        color: Color(0xFF2563EB),
-                        width: 1.5,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (markets.isNotEmpty)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: const Text('すべて'),
-                              selected: _marketFilter == null,
-                              onSelected: (_) => _setMarketFilter(null),
-                            ),
-                          ),
-                          ...markets.map(
-                            (market) => Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: ChoiceChip(
-                                label: Text(market),
-                                selected: _marketFilter == market,
-                                onSelected: (_) => _setMarketFilter(market),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+          StockSearchHeader(controller: _searchController),
+          StockMarketChipRow(
+            markets: _markets,
+            selectedMarket: _marketFilter,
+            onSelected: _setMarketFilter,
           ),
           Expanded(
             child: Builder(
               builder: (context) {
                 if (_initialLoading) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
+                  return const StockLoadingView();
                 }
 
                 if (_error != null && _all.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.error_outline,
-                            size: 56,
-                            color: Colors.redAccent,
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'データ取得に失敗しました',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _error!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.red),
-                          ),
-                          const SizedBox(height: 16),
-                          FilledButton(
-                            onPressed: _loadInitial,
-                            child: const Text('再試行'),
-                          ),
-                        ],
-                      ),
-                    ),
+                  return StockErrorView(
+                    title: 'データ取得に失敗しました',
+                    message: _error!,
+                    onRetry: _loadInitial,
                   );
                 }
 
-                if (_filtered.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      '該当する銘柄がありません',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.black54,
-                      ),
-                    ),
+                if (_all.isEmpty) {
+                  return const StockEmptyView(
+                    message: '該当する銘柄がありません',
                   );
                 }
 
                 return ListView.separated(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
-                  itemCount: _filtered.length + 1,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 12),
+                  itemCount: _all.length + 1,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    if (index == _filtered.length) {
+                    if (index == _all.length) {
                       if (_pageLoading) {
                         return const Padding(
                           padding: EdgeInsets.symmetric(vertical: 20),
@@ -628,8 +351,14 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
                       return const SizedBox.shrink();
                     }
 
-                    final company = _filtered[index];
-                    return _buildCard(company);
+                    final company = _all[index];
+                    return StockListCard(
+                      company: company,
+                      onTap: () => context.go('/stock/${company.code}'),
+                      onFavoriteTap: () => _toggleFavorite(company),
+                      favoriteTooltip:
+                          company.favorite ? 'お気に入り解除' : 'お気に入り登録',
+                    );
                   },
                 );
               },

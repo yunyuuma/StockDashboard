@@ -4,8 +4,6 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
-
 @Entity
 @Table(name = "favorites")
 @Getter
@@ -14,15 +12,11 @@ public class Favorite {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private Integer userId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "stock_code", referencedColumnName = "code", nullable = false)
-    private Stock stock;
-
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "stock_code", nullable = false, length = 10)
+    private String stockCode;
 }

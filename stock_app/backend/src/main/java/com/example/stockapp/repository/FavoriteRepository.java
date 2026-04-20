@@ -2,16 +2,15 @@ package com.example.stockapp.repository;
 
 import com.example.stockapp.entity.Favorite;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
 
-@Repository
-public interface FavoriteRepository extends JpaRepository<Favorite, Long> {
-    List<Favorite> findByUserIdOrderByIdAsc(Long userId);
+public interface FavoriteRepository extends JpaRepository<Favorite, Integer> {
 
-    Optional<Favorite> findByUserIdAndStock_Code(Long userId, String stockCode);
+    List<Favorite> findByUserIdOrderByIdAsc(Integer userId);
 
-    boolean existsByUserIdAndStock_Code(Long userId, String stockCode);
+    boolean existsByUserIdAndStockCode(Integer userId, String stockCode);
+
+    Optional<Favorite> findByUserIdAndStockCode(Integer userId, String stockCode);
 }

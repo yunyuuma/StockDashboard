@@ -34,8 +34,8 @@ class FavoriteApiRepository {
     return decoded.map<Company>((e) {
       final map = e as Map<String, dynamic>;
       return Company(
-        code: (map['stockCode'] ?? '').toString(),
-        name: (map['stockName'] ?? '').toString(),
+        code: (map['code'] ?? '').toString(),
+        name: (map['name'] ?? '').toString(),
         kana: '',
         market: (map['market'] ?? '').toString(),
         industry: (map['sector'] ?? '').toString(),
