@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/favorite_api_repository.dart';
+import '../data/price_repository.dart';
 import '../domain/app_session.dart';
 import '../domain/company.dart';
 import 'components/stock_empty_view.dart';
@@ -20,6 +21,11 @@ class CompanySearchPage extends StatefulWidget {
 
 class _CompanySearchPageState extends State<CompanySearchPage> {
   final FavoriteApiRepository favoriteApiRepository = FavoriteApiRepository();
+
+  static const String workerBaseUrl = 'https://workers.gikiin67.workers.dev';
+  final PriceRepository priceRepository =
+      PriceRepository(proxyBaseUrl: workerBaseUrl);
+
   final TextEditingController _searchController = TextEditingController();
 
   List<Company> _all = [];
@@ -59,10 +65,29 @@ class _CompanySearchPageState extends State<CompanySearchPage> {
         userId: AppSession.userId,
       );
 
+      final codes = favorites.map((e) => e.code).toList();
+
+      final quotes = codes.isEmpty
+          ? <String, dynamic>{}
+          : await priceRepository.refreshQuotes(
+              codes,
+              batchSize: 10,
+              delayBetweenBatches: const Duration(milliseconds: 200),
+            );
+
+      final merged = favorites.map((company) {
+        final quote = quotes[company.code];
+        return company.copyWith(
+          favorite: true,
+          price: quote?.price ?? 0,
+          changePct: quote?.changePct ?? 0,
+        );
+      }).toList();
+
       if (!mounted) return;
 
       setState(() {
-        _all = favorites.map((e) => e.copyWith(favorite: true)).toList();
+        _all = merged;
         _applyFilter();
       });
     } catch (e) {
@@ -142,6 +167,7 @@ class _CompanySearchPageState extends State<CompanySearchPage> {
   void dispose() {
     _searchController.dispose();
     favoriteApiRepository.dispose();
+    priceRepository.dispose();
     super.dispose();
   }
 
@@ -168,29 +194,15 @@ class _CompanySearchPageState extends State<CompanySearchPage> {
           ),
         ),
         actions: [
-      Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: FilledButton.icon(
-          onPressed: () {
-            context.go('/favorites');
-          },
-          icon: const Icon(Icons.star, size: 18),
-          label: const Text('お気に入り'),
-          style: FilledButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black87,
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: FilledButton.icon(
+              onPressed: _load,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('再読込'),
+            ),
           ),
-        ),
-      ),
-      Padding(
-        padding: const EdgeInsets.only(right: 12),
-        child: FilledButton.icon(
-          onPressed: _load,
-          icon: const Icon(Icons.refresh, size: 18),
-          label: const Text('再読込'),
-        ),
-      ),
-    ],
+        ],
       ),
       body: Column(
         children: [
@@ -229,6 +241,7 @@ class _CompanySearchPageState extends State<CompanySearchPage> {
                     final company = _filtered[index];
                     return StockListCard(
                       company: company,
+                      showPriceInfo: true,
                       onTap: () => context.go('/stock/${company.code}'),
                       onFavoriteTap: () => _toggleFavorite(company),
                       favoriteTooltip: 'お気に入り解除',

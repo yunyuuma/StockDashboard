@@ -55,6 +55,14 @@ public class StockService {
         return getAllStocksCached();
     }
 
+    public String findNameByCode(String code) {
+        return getAllStocks().stream()
+                .filter(stock -> stock.getCode().equalsIgnoreCase(code))
+                .findFirst()
+                .map(StockResponse::getName)
+                .orElse(code);
+    }
+
     public synchronized void reloadCache() {
         cachedStocks = fetchAllFromJQuants();
         cachedAt = Instant.now();

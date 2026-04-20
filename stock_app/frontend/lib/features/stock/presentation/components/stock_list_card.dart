@@ -8,12 +8,14 @@ class StockListCard extends StatelessWidget {
     required this.onTap,
     required this.onFavoriteTap,
     this.favoriteTooltip,
+    this.showPriceInfo = false,
   });
 
   final Company company;
   final VoidCallback onTap;
   final VoidCallback onFavoriteTap;
   final String? favoriteTooltip;
+  final bool showPriceInfo;
 
   Color _marketChipColor(String market) {
     switch (market) {
@@ -43,6 +45,8 @@ class StockListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPlus = company.changePct >= 0;
+
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(20),
@@ -137,31 +141,90 @@ class StockListCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Text(
-                          '銘柄詳細へ',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
+                    if (showPriceInfo) ...[
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _metricBox(
+                              title: '現在価格',
+                              value: company.price > 0
+                                  ? '¥${company.price.toStringAsFixed(0)}'
+                                  : '-',
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.arrow_forward_ios_rounded,
-                          size: 14,
-                          color: Colors.grey[500],
-                        ),
-                      ],
-                    ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _metricBox(
+                              title: '前日比',
+                              value: company.price > 0
+                                  ? '${isPlus ? '+' : ''}${company.changePct.toStringAsFixed(2)}%'
+                                  : '-',
+                              valueColor: company.price > 0
+                                  ? (isPlus
+                                      ? const Color(0xFF16A34A)
+                                      : const Color(0xFFDC2626))
+                                  : Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Text(
+                            '銘柄詳細へ',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 14,
+                            color: Colors.grey[500],
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _metricBox({
+    required String title,
+    required String value,
+    Color? valueColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: valueColor ?? Colors.black87,
+            ),
+          ),
+        ],
       ),
     );
   }

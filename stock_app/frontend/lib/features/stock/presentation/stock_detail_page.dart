@@ -1,10 +1,14 @@
 import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../data/favorite_api_repository.dart';
 import '../data/stock_detail_api_repository.dart';
+import '../data/stock_news_api_repository.dart';
+import '../data/stock_news.dart';
+import '../domain/app_session.dart';
 import '../domain/stock_detail_models.dart';
 import 'components/stock_error_view.dart';
 import 'components/stock_loading_view.dart';
@@ -26,29 +30,35 @@ class _StockDetailPageState extends State<StockDetailPage>
     with SingleTickerProviderStateMixin {
   final StockDetailApiRepository repository = StockDetailApiRepository();
   final FavoriteApiRepository favoriteApiRepository = FavoriteApiRepository();
+  final StockNewsApiRepository newsRepo = StockNewsApiRepository();
 
   late final TabController _tabController;
-
-  final int _userId = 1;
+  final ScrollController _newsScrollController = ScrollController();
 
   bool _loading = true;
   bool _favoriteLoading = false;
   bool _isFavorite = false;
+  bool _newsLoading = true;
   String? _error;
 
   StockDetailSummary? _summary;
   List<StockChartPoint> _chart = [];
-  List<StockNewsItem> _news = [];
+  List<StockNews> _allNews = [];
+  List<StockNews> _visibleNews = [];
+  Set<String> _readNewsKeys = {};
   StockMetrics? _metrics;
   StockCompanyInfo? _company;
 
   String _selectedRange = '6M';
   String _chartType = 'candle';
 
+  static const int _olderBatchSize = 10;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    _newsScrollController.addListener(_onNewsScroll);
     _load();
   }
 
@@ -57,6 +67,7 @@ class _StockDetailPageState extends State<StockDetailPage>
 
     setState(() {
       _loading = true;
+      _newsLoading = true;
       _error = null;
     });
 
@@ -64,35 +75,47 @@ class _StockDetailPageState extends State<StockDetailPage>
       final results = await Future.wait([
         repository.fetchSummary(widget.code),
         repository.fetchChart(widget.code),
-        repository.fetchNews(widget.code),
         repository.fetchMetrics(widget.code),
         repository.fetchCompany(widget.code),
-        favoriteApiRepository.fetchFavorites(userId: _userId),
+        favoriteApiRepository.fetchFavorites(userId: AppSession.userId),
+        newsRepo.fetchNews(widget.code),
+        _loadReadNewsKeys(),
       ]);
 
       final summary = results[0] as StockDetailSummary;
       final chart = results[1] as List<StockChartPoint>;
-      final news = results[2] as List<StockNewsItem>;
-      final metrics = results[3] as StockMetrics;
-      final company = results[4] as StockCompanyInfo;
-      final favorites = results[5] as List<dynamic>;
+      final metrics = results[2] as StockMetrics;
+      final company = results[3] as StockCompanyInfo;
+      final favorites = results[4] as List<dynamic>;
+      final news = results[5] as List<StockNews>;
+      final readKeys = results[6] as Set<String>;
 
       final favoriteCodes = favorites.map((e) => e.code as String).toSet();
 
       if (!mounted) return;
 
+      final sortedNews = [...news]..sort((a, b) {
+        final ad = _parseNewsDate(a.publishedAt);
+        final bd = _parseNewsDate(b.publishedAt);
+        return bd.compareTo(ad);
+      });
+
       setState(() {
         _summary = summary;
         _chart = chart;
-        _news = news;
         _metrics = metrics;
         _company = company;
+        _allNews = sortedNews;
+        _readNewsKeys = readKeys;
         _isFavorite = favoriteCodes.contains(widget.code);
+        _setupInitialVisibleNews();
+        _newsLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.toString();
+        _newsLoading = false;
       });
     } finally {
       if (mounted) {
@@ -101,6 +124,85 @@ class _StockDetailPageState extends State<StockDetailPage>
         });
       }
     }
+  }
+
+  Future<Set<String>> _loadReadNewsKeys() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_newsReadPrefsKey())?.toSet() ?? {};
+  }
+
+  Future<void> _markNewsAsRead(StockNews news) async {
+    final key = news.readKey;
+    if (_readNewsKeys.contains(key)) return;
+
+    final updated = {..._readNewsKeys, key};
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_newsReadPrefsKey(), updated.toList());
+
+    if (!mounted) return;
+    setState(() {
+      _readNewsKeys = updated;
+    });
+  }
+
+  String _newsReadPrefsKey() => 'read_news_${widget.code}';
+
+  void _setupInitialVisibleNews() {
+    if (_allNews.isEmpty) {
+      _visibleNews = [];
+      return;
+    }
+
+    final now = DateTime.now();
+    final cutoff = now.subtract(const Duration(days: 2));
+
+    final recent = _allNews.where((news) {
+      final dt = _parseNewsDate(news.publishedAt);
+      return dt.isAfter(cutoff) || dt.isAtSameMomentAs(cutoff);
+    }).toList();
+
+    if (recent.isNotEmpty) {
+      _visibleNews = recent;
+    } else {
+      _visibleNews = _allNews.take(_olderBatchSize).toList();
+    }
+  }
+
+  bool get _hasMoreOlderNews => _visibleNews.length < _allNews.length;
+
+  void _appendOlderNews() {
+    if (!_hasMoreOlderNews) return;
+
+    final currentCount = _visibleNews.length;
+    final nextCount = math.min(currentCount + _olderBatchSize, _allNews.length);
+
+    if (nextCount <= currentCount) return;
+
+    setState(() {
+      _visibleNews = _allNews.take(nextCount).toList();
+    });
+  }
+
+  void _onNewsScroll() {
+    if (!_newsScrollController.hasClients) return;
+
+    final position = _newsScrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 200) {
+      _appendOlderNews();
+    }
+  }
+
+  DateTime _parseNewsDate(String raw) {
+    try {
+      return DateTime.parse(raw);
+    } catch (_) {}
+
+    try {
+      final normalized = raw.replaceFirst(' ', 'T');
+      return DateTime.parse(normalized);
+    } catch (_) {}
+
+    return DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   Future<void> _toggleFavorite() async {
@@ -113,12 +215,12 @@ class _StockDetailPageState extends State<StockDetailPage>
     try {
       if (_isFavorite) {
         await favoriteApiRepository.deleteFavorite(
-          userId: _userId,
+          userId: AppSession.userId,
           stockCode: widget.code,
         );
       } else {
         await favoriteApiRepository.addFavorite(
-          userId: _userId,
+          userId: AppSession.userId,
           stockCode: widget.code,
         );
       }
@@ -143,6 +245,7 @@ class _StockDetailPageState extends State<StockDetailPage>
 
   Future<void> _openUrl(String url) async {
     if (url.isEmpty) return;
+
     final uri = Uri.parse(url);
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
 
@@ -398,8 +501,18 @@ class _StockDetailPageState extends State<StockDetailPage>
               _kv('PER', (m != null && m.per > 0) ? m.per.toStringAsFixed(2) : '-'),
               _kv('PBR', (m != null && m.pbr > 0) ? m.pbr.toStringAsFixed(2) : '-'),
               _kv('ROE', (m != null && m.roe > 0) ? '${m.roe.toStringAsFixed(2)}%' : '-'),
-              _kv('配当利回り', (m != null && m.dividendYield > 0) ? '${m.dividendYield.toStringAsFixed(2)}%' : '-'),
-              _kv('時価総額', (m != null && m.marketCap > 0) ? m.marketCap.toStringAsFixed(0) : '-'),
+              _kv(
+                '配当利回り',
+                (m != null && m.dividendYield > 0)
+                    ? '${m.dividendYield.toStringAsFixed(2)}%'
+                    : '-',
+              ),
+              _kv(
+                '時価総額',
+                (m != null && m.marketCap > 0)
+                    ? m.marketCap.toStringAsFixed(0)
+                    : '-',
+              ),
             ],
           ),
         ),
@@ -672,46 +785,65 @@ class _StockDetailPageState extends State<StockDetailPage>
   }
 
   Widget _buildNewsTab() {
-    if (_news.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        children: const [
-          StockSectionCard(
-            title: 'ニュース',
-            child: Text('ニュースデータはまだありません。'),
-          ),
-        ],
+    if (_newsLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_visibleNews.isEmpty) {
+      return const Center(
+        child: Text('ニュースはまだありません'),
       );
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-      itemCount: _news.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final item = _news[index];
-        return StockSectionCard(
-          title: item.source.isEmpty ? 'ニュース' : item.source,
-          child: InkWell(
-            onTap: () => _openUrl(item.url),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  item.publishedAt.isNotEmpty ? item.publishedAt : '-',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                ),
-              ],
+      itemCount: _visibleNews.length + (_hasMoreOlderNews ? 1 : 0),
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (_, i) {
+        if (i == _visibleNews.length) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+            child: Center(
+              child: OutlinedButton(
+                onPressed: _appendOlderNews,
+                child: const Text('さらに過去のニュースを表示'),
+              ),
+            ),
+          );
+        }
+
+        final n = _visibleNews[i];
+        final isRead = _readNewsKeys.contains(n.readKey);
+
+        return ListTile(
+          contentPadding: const EdgeInsets.all(12),
+          title: Text(
+            n.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: isRead ? Colors.black38 : Colors.black87,
             ),
           ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              '${n.source}  ${n.publishedAt}',
+              style: TextStyle(
+                color: isRead ? Colors.black38 : Colors.black54,
+              ),
+            ),
+          ),
+          trailing: Icon(
+            Icons.open_in_new,
+            color: isRead ? Colors.black38 : Colors.black54,
+          ),
+          onTap: () async {
+            await _markNewsAsRead(n);
+            await _openUrl(n.link);
+          },
         );
       },
     );
@@ -768,9 +900,11 @@ class _StockDetailPageState extends State<StockDetailPage>
 
   @override
   void dispose() {
+    _newsScrollController.dispose();
     _tabController.dispose();
     repository.dispose();
     favoriteApiRepository.dispose();
+    newsRepo.dispose();
     super.dispose();
   }
 

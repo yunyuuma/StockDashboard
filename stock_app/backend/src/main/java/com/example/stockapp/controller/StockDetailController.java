@@ -1,7 +1,12 @@
 package com.example.stockapp.controller;
 
-import com.example.stockapp.dto.*;
+import com.example.stockapp.dto.StockChartPointResponse;
+import com.example.stockapp.dto.StockCompanyResponse;
+import com.example.stockapp.dto.StockDetailResponse;
+import com.example.stockapp.dto.StockMetricsResponse;
+import com.example.stockapp.dto.StockNewsResponse;
 import com.example.stockapp.service.StockDetailService;
+import com.example.stockapp.service.StockNewsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,6 +19,7 @@ import java.util.List;
 public class StockDetailController {
 
     private final StockDetailService stockDetailService;
+    private final StockNewsService stockNewsService;
 
     @GetMapping("/{code}")
     public StockDetailResponse getSummary(@PathVariable String code) {
@@ -37,6 +43,6 @@ public class StockDetailController {
 
     @GetMapping("/{code}/news")
     public List<StockNewsResponse> getNews(@PathVariable String code) {
-        return stockDetailService.getNews(code);
+        return stockNewsService.getNews(code);
     }
 }

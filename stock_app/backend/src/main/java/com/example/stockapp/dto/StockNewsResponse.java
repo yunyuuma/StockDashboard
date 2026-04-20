@@ -1,13 +1,14 @@
 package com.example.stockapp.dto;
 
 import lombok.AllArgsConstructor;
-import lombok.Getter;
+import lombok.Data;
 
-@Getter
+@Data
 @AllArgsConstructor
 public class StockNewsResponse {
+
     private String title;
-    private String source;
+    private String link;
     private String publishedAt;
-    private String url;
+    private String source;
 }
