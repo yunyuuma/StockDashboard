@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'features/stock/presentation/company_register_page.dart';
 import 'features/stock/presentation/company_search_page.dart';
 import 'features/stock/presentation/stock_detail_page.dart';
+import 'features/admin/presentation/admin_company_profile_list_page.dart';
+import 'features/admin/presentation/admin_company_profile_edit_page.dart';
 
 void main() {
   runApp(const ProviderScope(child: App()));
@@ -32,6 +34,17 @@ class App extends StatelessWidget {
           builder: (context, state) {
             final code = state.pathParameters['code']!;
             return StockDetailPage(code: code);
+          },
+        ),
+        GoRoute(
+          path: '/admin/company-profiles',
+          builder: (context, state) => const AdminCompanyProfileListPage(),
+        ),
+        GoRoute(
+          path: '/admin/company-profiles/:stockCode',
+          builder: (context, state) {
+            final stockCode = state.pathParameters['stockCode']!;
+            return AdminCompanyProfileEditPage(stockCode: stockCode);
           },
         ),
       ],

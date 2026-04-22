@@ -51,6 +51,15 @@ class _StockDetailPageState extends State<StockDetailPage>
 
   String _selectedRange = '6M';
   String _chartType = 'candle';
+  String _buildGoogleMapsUrl(String query) {
+    final encoded = Uri.encodeComponent(query);
+    return 'https://www.google.com/maps/search/?api=1&query=$encoded';
+  }
+
+  String _buildGoogleTrendsUrl(String keyword) {
+    final encoded = Uri.encodeComponent(keyword);
+    return 'https://trends.google.com/trends/explore?q=$encoded&geo=JP';
+  }
 
   static const int _olderBatchSize = 10;
 
@@ -485,33 +494,105 @@ class _StockDetailPageState extends State<StockDetailPage>
           title: '当日データ',
           child: Column(
             children: [
-              _kv('始値', s.open > 0 ? '¥${s.open.toStringAsFixed(0)}' : '-'),
-              _kv('高値', s.high > 0 ? '¥${s.high.toStringAsFixed(0)}' : '-'),
-              _kv('安値', s.low > 0 ? '¥${s.low.toStringAsFixed(0)}' : '-'),
-              _kv('終値', s.close > 0 ? '¥${s.close.toStringAsFixed(0)}' : '-'),
-              _kv('出来高', s.volume > 0 ? s.volume.toStringAsFixed(0) : '-'),
+              Row(
+                children: [
+                  Expanded(child: _infoTile('現在価格', s.price > 0 ? '¥${s.price.toStringAsFixed(0)}' : '-')),
+                  const SizedBox(width: 10),
+                  Expanded(child: _infoTile('前日比', '${s.changePct >= 0 ? '+' : ''}${s.changePct.toStringAsFixed(2)}%')),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _infoTile('始値', s.open > 0 ? '¥${s.open.toStringAsFixed(0)}' : '-')),
+                  const SizedBox(width: 10),
+                  Expanded(child: _infoTile('高値', s.high > 0 ? '¥${s.high.toStringAsFixed(0)}' : '-')),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _infoTile('安値', s.low > 0 ? '¥${s.low.toStringAsFixed(0)}' : '-')),
+                  const SizedBox(width: 10),
+                  Expanded(child: _infoTile('出来高', s.volume > 0 ? s.volume.toStringAsFixed(0) : '-')),
+                ],
+              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
         StockSectionCard(
-          title: '主要指標',
+          title: '開示サマリー',
           child: Column(
             children: [
-              _kv('PER', (m != null && m.per > 0) ? m.per.toStringAsFixed(2) : '-'),
-              _kv('PBR', (m != null && m.pbr > 0) ? m.pbr.toStringAsFixed(2) : '-'),
-              _kv('ROE', (m != null && m.roe > 0) ? '${m.roe.toStringAsFixed(2)}%' : '-'),
-              _kv(
-                '配当利回り',
-                (m != null && m.dividendYield > 0)
-                    ? '${m.dividendYield.toStringAsFixed(2)}%'
-                    : '-',
+              Row(
+                children: [
+                  Expanded(child: _infoTile('開示日', _textOrDash(m?.disclosedDate))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _infoTile('開示時刻', _textOrDash(m?.disclosedTime))),
+                ],
               ),
-              _kv(
-                '時価総額',
-                (m != null && m.marketCap > 0)
-                    ? m.marketCap.toStringAsFixed(0)
-                    : '-',
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _infoTile('書類種別', _textOrDash(m?.typeOfDocument))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _infoTile('対象期間', _textOrDash(m?.currentPeriodEndDate))),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        StockSectionCard(
+          title: '決算サマリー',
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(child: _infoTile('売上高', _numOrDash(m?.netSales))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _infoTile('営業利益', _numOrDash(m?.operatingProfit))),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _infoTile('経常利益', _numOrDash(m?.ordinaryProfit))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _infoTile('当期純利益', _numOrDash(m?.profit))),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _infoTile('EPS', _numOrDash(m?.earningsPerShare))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _infoTile('年間配当予想', _numOrDash(m?.annualDividendPerShareForecast))),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        StockSectionCard(
+          title: '業績予想',
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(child: _infoTile('売上高予想', _numOrDash(m?.forecastNetSales))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _infoTile('営業利益予想', _numOrDash(m?.forecastOperatingProfit))),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _infoTile('経常利益予想', _numOrDash(m?.forecastOrdinaryProfit))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _infoTile('当期純利益予想', _numOrDash(m?.forecastProfit))),
+                ],
               ),
             ],
           ),
@@ -519,6 +600,38 @@ class _StockDetailPageState extends State<StockDetailPage>
       ],
     );
   }
+
+Widget _infoTile(String title, String value) {
+  return Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF8FAFC),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+String _textOrDash(String? value) {
+  return (value == null || value.isEmpty) ? '-' : value;
+}
+
+String _numOrDash(num? value) {
+  return value == null ? '-' : value.toStringAsFixed(0);
+}
 
   Widget _buildChartTab() {
     final points = _filteredChart();
@@ -849,54 +962,91 @@ class _StockDetailPageState extends State<StockDetailPage>
     );
   }
 
-  Widget _buildCompanyTab() {
-    final c = _company;
-    final s = _summary!;
+Widget _buildCompanyTab() {
+  final c = _company;
+  final s = _summary!;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-      children: [
-        StockSectionCard(
-          title: '企業情報',
-          child: Column(
-            children: [
-              _kv('企業名', c?.companyName.isNotEmpty == true ? c!.companyName : s.name),
-              _kv('市場', c?.market.isNotEmpty == true ? c!.market : s.market),
-              _kv('業種', c?.industry.isNotEmpty == true ? c!.industry : s.industry),
-              _kv('本社所在地', c?.headquarters.isNotEmpty == true ? c!.headquarters : '-'),
-            ],
-          ),
+  final companyName =
+      c?.companyName.isNotEmpty == true ? c!.companyName : s.name;
+  final market =
+      c?.market.isNotEmpty == true ? c!.market : s.market;
+  final industry =
+      c?.industry.isNotEmpty == true ? c!.industry : s.industry;
+
+  final mapQuery = c?.mapQuery.isNotEmpty == true
+      ? c!.mapQuery
+      : (companyName.isNotEmpty ? '$companyName 本社' : widget.code);
+
+  final trendsKeyword = c?.trendsKeyword.isNotEmpty == true
+      ? c!.trendsKeyword
+      : (companyName.isNotEmpty ? companyName : widget.code);
+
+  return ListView(
+    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+    children: [
+      StockSectionCard(
+        title: '企業情報',
+        child: Column(
+          children: [
+            _kv('企業名', companyName),
+            _kv('市場', market),
+            _kv('業種', industry),
+          ],
         ),
-        const SizedBox(height: 12),
-        StockSectionCard(
-          title: '概要',
+      ),
+      const SizedBox(height: 12),
+      StockSectionCard(
+        title: '概要',
+        child: Text(
+          c?.description.isNotEmpty == true
+              ? c!.description
+              : '企業概要データはまだ登録されていません。',
+          style: const TextStyle(height: 1.6),
+        ),
+      ),
+      const SizedBox(height: 12),
+      StockSectionCard(
+        title: 'Webサイト',
+        child: InkWell(
+          onTap: c?.website.isNotEmpty == true
+              ? () => _openUrl(c!.website)
+              : null,
           child: Text(
-            c?.description.isNotEmpty == true
-                ? c!.description
-                : '企業概要データはまだ登録されていません。',
-          ),
-        ),
-        const SizedBox(height: 12),
-        StockSectionCard(
-          title: 'Webサイト',
-          child: InkWell(
-            onTap: c?.website.isNotEmpty == true ? () => _openUrl(c!.website) : null,
-            child: Text(
-              c?.website.isNotEmpty == true ? c!.website : '-',
-              style: TextStyle(
-                color: c?.website.isNotEmpty == true
-                    ? const Color(0xFF2563EB)
-                    : Colors.black54,
-                decoration: c?.website.isNotEmpty == true
-                    ? TextDecoration.underline
-                    : TextDecoration.none,
-              ),
+            c?.website.isNotEmpty == true ? c!.website : '-',
+            style: TextStyle(
+              color: c?.website.isNotEmpty == true
+                  ? const Color(0xFF2563EB)
+                  : Colors.black54,
+              decoration: c?.website.isNotEmpty == true
+                  ? TextDecoration.underline
+                  : TextDecoration.none,
             ),
           ),
         ),
-      ],
-    );
-  }
+      ),
+      const SizedBox(height: 12),
+      StockSectionCard(
+        title: 'マップ / トレンド',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            FilledButton.icon(
+              onPressed: () => _openUrl(_buildGoogleMapsUrl(mapQuery)),
+              icon: const Icon(Icons.map_outlined),
+              label: const Text('Googleマップで見る'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => _openUrl(_buildGoogleTrendsUrl(trendsKeyword)),
+              icon: const Icon(Icons.trending_up),
+              label: const Text('Google Trendsで見る'),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
 
   @override
   void dispose() {

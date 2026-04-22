@@ -24,25 +24,77 @@ public class JQuantsFinSummaryResponse {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Item {
 
-        @JsonAlias({"Code", "code"})
-        private String code;
+        @JsonAlias({"DisclosedDate", "disclosedDate", "Date", "date"})
+        private String disclosedDate;
 
-        @JsonAlias({"Date", "date", "DiscDate"})
-        private String date;
+        @JsonAlias({"DisclosedTime", "disclosedTime"})
+        private String disclosedTime;
 
-        @JsonAlias({"PER", "per"})
-        private Double per;
+        @JsonAlias({"LocalCode", "localCode", "Code", "code"})
+        private String localCode;
 
-        @JsonAlias({"PBR", "pbr"})
-        private Double pbr;
+        @JsonAlias({"DisclosureNumber", "disclosureNumber"})
+        private String disclosureNumber;
 
-        @JsonAlias({"ROE", "roe"})
-        private Double roe;
+        @JsonAlias({"TypeOfDocument", "typeOfDocument"})
+        private String typeOfDocument;
 
-        @JsonAlias({"ForecastDividendYieldAnnual", "forecastDividendYieldAnnual", "DividendYield"})
-        private Double dividendYield;
+        @JsonAlias({"TypeOfCurrentPeriod", "typeOfCurrentPeriod"})
+        private String typeOfCurrentPeriod;
 
-        @JsonAlias({"MarketCapitalization", "marketCapitalization", "MarketCap"})
-        private Double marketCap;
+        @JsonAlias({"CurrentPeriodStartDate", "currentPeriodStartDate"})
+        private String currentPeriodStartDate;
+
+        @JsonAlias({"CurrentPeriodEndDate", "currentPeriodEndDate"})
+        private String currentPeriodEndDate;
+
+        @JsonAlias({"CurrentFiscalYearStartDate", "currentFiscalYearStartDate"})
+        private String currentFiscalYearStartDate;
+
+        @JsonAlias({"CurrentFiscalYearEndDate", "currentFiscalYearEndDate"})
+        private String currentFiscalYearEndDate;
+
+        @JsonAlias({"NetSales", "netSales"})
+        private Double netSales;
+
+        @JsonAlias({"OperatingProfit", "operatingProfit"})
+        private Double operatingProfit;
+
+        @JsonAlias({"OrdinaryProfit", "ordinaryProfit"})
+        private Double ordinaryProfit;
+
+        @JsonAlias({"Profit", "profit"})
+        private Double profit;
+
+        @JsonAlias({"EarningsPerShare", "earningsPerShare", "EPS", "eps"})
+        private Double earningsPerShare;
+
+        @JsonAlias({"ForecastNetSales", "forecastNetSales"})
+        private Double forecastNetSales;
+
+        @JsonAlias({"ForecastOperatingProfit", "forecastOperatingProfit"})
+        private Double forecastOperatingProfit;
+
+        @JsonAlias({"ForecastOrdinaryProfit", "forecastOrdinaryProfit"})
+        private Double forecastOrdinaryProfit;
+
+        @JsonAlias({"ForecastProfit", "forecastProfit"})
+        private Double forecastProfit;
+
+        @JsonAlias({
+                "ForecastEarningsPerShare",
+                "forecastEarningsPerShare",
+                "ForecastEPS",
+                "forecastEPS"
+        })
+        private Double forecastEarningsPerShare;
+
+        @JsonAlias({
+                "ForecastAnnualDividendPerShare",
+                "forecastAnnualDividendPerShare",
+                "AnnualDividendPerShareForecast",
+                "annualDividendPerShareForecast"
+        })
+        private Double forecastAnnualDividendPerShare;
     }
 }

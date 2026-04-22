@@ -10,6 +10,8 @@ import com.example.stockapp.dto.StockDetailResponse;
 import com.example.stockapp.dto.StockMetricsResponse;
 import com.example.stockapp.dto.StockNewsResponse;
 import com.example.stockapp.dto.StockResponse;
+import com.example.stockapp.entity.CompanyProfile;
+import com.example.stockapp.repository.CompanyProfileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +26,23 @@ public class StockDetailService {
 
     private final JQuantsClient jQuantsClient;
     private final StockService stockService;
+    private final CompanyProfileRepository companyProfileRepository;
+
+    private StockMetricsResponse emptyMetrics() {
+        return new StockMetricsResponse(
+                "",
+                "",
+                "",
+                "",
+                0, 0, 0, 0, 0,
+                0, 0, 0, 0,
+                0
+        );
+    }
+
+    private String str(String value) {
+        return value == null ? "" : value;
+    }
 
     public StockDetailResponse getSummary(String code) {
         String normalizedCode = normalizeCodeForApi(code);
@@ -101,56 +120,78 @@ public class StockDetailService {
 
         try {
             JQuantsFinSummaryResponse finRes = jQuantsClient.getFinSummary(normalizedCode);
-            List<JQuantsFinSummaryResponse.Item> finItems = safeFin(finRes);
-            finItems.sort(Comparator.comparing(JQuantsFinSummaryResponse.Item::getDate));
+            List<JQuantsFinSummaryResponse.Item> items = safeFin(finRes);
 
-            double per = lastPositive(finItems.stream()
-                    .map(JQuantsFinSummaryResponse.Item::getPer)
-                    .toList());
+            items.sort(Comparator.comparing(JQuantsFinSummaryResponse.Item::getDisclosedDate));
 
-            double pbr = lastPositive(finItems.stream()
-                    .map(JQuantsFinSummaryResponse.Item::getPbr)
-                    .toList());
+            if (items.isEmpty()) {
+                return emptyMetrics();
+            }
 
-            double roe = lastPositive(finItems.stream()
-                    .map(JQuantsFinSummaryResponse.Item::getRoe)
-                    .toList());
-
-            double dividendYield = lastPositive(finItems.stream()
-                    .map(JQuantsFinSummaryResponse.Item::getDividendYield)
-                    .toList());
-
-            double marketCap = lastPositive(finItems.stream()
-                    .map(JQuantsFinSummaryResponse.Item::getMarketCap)
-                    .toList());
+            JQuantsFinSummaryResponse.Item latest = items.get(items.size() - 1);
 
             return new StockMetricsResponse(
-                    per,
-                    pbr,
-                    roe,
-                    dividendYield,
-                    marketCap
+                    str(latest.getDisclosedDate()),
+                    str(latest.getDisclosedTime()),
+                    str(latest.getTypeOfDocument()),
+                    str(latest.getCurrentPeriodEndDate()),
+
+                    nvl(latest.getNetSales()),
+                    nvl(latest.getOperatingProfit()),
+                    nvl(latest.getOrdinaryProfit()),
+                    nvl(latest.getProfit()),
+                    nvl(latest.getEarningsPerShare()),
+
+                    nvl(latest.getForecastNetSales()),
+                    nvl(latest.getForecastOperatingProfit()),
+                    nvl(latest.getForecastOrdinaryProfit()),
+                    nvl(latest.getForecastProfit()),
+
+                    nvl(latest.getForecastAnnualDividendPerShare())
             );
 
         } catch (Exception e) {
-            return new StockMetricsResponse(0, 0, 0, 0, 0);
+            return emptyMetrics();
         }
     }
 
     public StockCompanyResponse getCompany(String code) {
-        StockResponse stock = stockService.getAllStocks()
-                .stream()
+        StockResponse stock = stockService.getAllStocks().stream()
                 .filter(s -> s.getCode().equalsIgnoreCase(code))
                 .findFirst()
                 .orElse(new StockResponse(code, "", "", ""));
 
+        String companyName = stock.getName() == null ? "" : stock.getName();
+        String market = stock.getMarket() == null ? "" : stock.getMarket();
+        String industry = stock.getSector() == null ? "" : stock.getSector();
+
+        CompanyProfile profile = companyProfileRepository.findByStockCode(code)
+                .orElse(null);
+
+        String description = profile != null && profile.getDescription() != null
+                ? profile.getDescription()
+                : "";
+
+        String website = profile != null && profile.getWebsite() != null
+                ? profile.getWebsite()
+                : "";
+
+        String mapQuery = profile != null && profile.getMapQuery() != null && !profile.getMapQuery().isBlank()
+                ? profile.getMapQuery()
+                : (companyName.isBlank() ? code : companyName + " 本社");
+
+        String trendsKeyword = profile != null && profile.getTrendsKeyword() != null && !profile.getTrendsKeyword().isBlank()
+                ? profile.getTrendsKeyword()
+                : (companyName.isBlank() ? code : companyName);
+
         return new StockCompanyResponse(
-                stock.getName(),
-                stock.getMarket(),
-                stock.getSector(),
-                "",
-                "",
-                ""
+                companyName,
+                market,
+                industry,
+                description,
+                website,
+                mapQuery,
+                trendsKeyword
         );
     }
 

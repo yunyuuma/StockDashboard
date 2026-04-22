@@ -6,9 +6,22 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public class StockMetricsResponse {
-    private double per;
-    private double pbr;
-    private double roe;
-    private double dividendYield;
-    private double marketCap;
+
+    private String disclosedDate;
+    private String disclosedTime;
+    private String typeOfDocument;
+    private String currentPeriodEndDate;
+
+    private double netSales;
+    private double operatingProfit;
+    private double ordinaryProfit;
+    private double profit;
+    private double earningsPerShare;
+
+    private double forecastNetSales;
+    private double forecastOperatingProfit;
+    private double forecastOrdinaryProfit;
+    private double forecastProfit;
+
+    private double annualDividendPerShareForecast;
 }

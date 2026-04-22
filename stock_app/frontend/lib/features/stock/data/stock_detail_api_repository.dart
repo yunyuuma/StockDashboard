@@ -98,31 +98,51 @@ class StockDetailApiRepository {
     final map = jsonDecode(res.body) as Map<String, dynamic>;
 
     return StockMetrics(
-      per: _toDouble(map['per']),
-      pbr: _toDouble(map['pbr']),
-      roe: _toDouble(map['roe']),
-      dividendYield: _toDouble(map['dividendYield']),
-      marketCap: _toDouble(map['marketCap']),
+      disclosedDate: (map['disclosedDate'] ?? '').toString(),
+      disclosedTime: (map['disclosedTime'] ?? '').toString(),
+      typeOfDocument: (map['typeOfDocument'] ?? '').toString(),
+      currentPeriodEndDate: (map['currentPeriodEndDate'] ?? '').toString(),
+
+      netSales: _toDouble(map['netSales']),
+      operatingProfit: _toDouble(map['operatingProfit']),
+      ordinaryProfit: _toDouble(map['ordinaryProfit']),
+      profit: _toDouble(map['profit']),
+      earningsPerShare: _toDouble(map['earningsPerShare'] ?? map['eps']),
+
+      forecastNetSales: _toDouble(map['forecastNetSales']),
+      forecastOperatingProfit: _toDouble(map['forecastOperatingProfit']),
+      forecastOrdinaryProfit: _toDouble(map['forecastOrdinaryProfit']),
+      forecastProfit: _toDouble(map['forecastProfit']),
+
+      annualDividendPerShareForecast: _toDouble(
+        map['annualDividendPerShareForecast'] ?? map['dividendForecast'],
+      ),
     );
   }
 
   Future<StockCompanyInfo> fetchCompany(String code) async {
     final uri = Uri.parse('$baseUrl/api/stocks/$code/company');
-    final res = await _client.get(uri, headers: const {'Accept': 'application/json'});
+    final res = await _client.get(
+      uri,
+      headers: const {'Accept': 'application/json'},
+    );
 
     if (res.statusCode != 200) {
-      throw Exception('company fetch failed: status=${res.statusCode}, body=${res.body}');
+      throw Exception(
+        'company fetch failed: status=${res.statusCode}, body=${res.body}',
+      );
     }
 
     final map = jsonDecode(res.body) as Map<String, dynamic>;
 
     return StockCompanyInfo(
-      companyName: (map['companyName'] ?? '').toString(),
+      companyName: (map['companyName'] ?? map['name'] ?? '').toString(),
       market: (map['market'] ?? '').toString(),
-      industry: (map['industry'] ?? '').toString(),
+      industry: (map['industry'] ?? map['sector'] ?? '').toString(),
       description: (map['description'] ?? '').toString(),
       website: (map['website'] ?? '').toString(),
-      headquarters: (map['headquarters'] ?? '').toString(),
+      mapQuery: (map['mapQuery'] ?? '').toString(),
+      trendsKeyword: (map['trendsKeyword'] ?? '').toString(),
     );
   }
 
