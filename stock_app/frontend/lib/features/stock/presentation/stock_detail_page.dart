@@ -26,8 +26,47 @@ class StockDetailPage extends StatefulWidget {
   State<StockDetailPage> createState() => _StockDetailPageState();
 }
 
+class _ChartLegendDot extends StatelessWidget {
+  const _ChartLegendDot({
+    required this.color,
+    required this.text,
+  });
+
+  final Color color;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _StockDetailPageState extends State<StockDetailPage>
     with SingleTickerProviderStateMixin {
+  int? _touchedPriceIndex;
+  int? _touchedMaIndex;
+  int? _touchedRsiIndex;
+
   final StockDetailApiRepository repository = StockDetailApiRepository();
   final FavoriteApiRepository favoriteApiRepository = FavoriteApiRepository();
   final StockNewsApiRepository newsRepo = StockNewsApiRepository();
@@ -51,6 +90,29 @@ class _StockDetailPageState extends State<StockDetailPage>
 
   String _selectedRange = '6M';
   String _chartType = 'candle';
+  Widget _legendDot(Color color, String text) {
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+        ),
+      ),
+      const SizedBox(width: 6),
+      Text(
+        text,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ],
+  );
+}
   String _buildGoogleMapsUrl(String query) {
     final encoded = Uri.encodeComponent(query);
     return 'https://www.google.com/maps/search/?api=1&query=$encoded';
@@ -134,6 +196,142 @@ class _StockDetailPageState extends State<StockDetailPage>
       }
     }
   }
+
+  int _bottomTitleStep(int length) {
+  if (length <= 12) return 1;
+  if (length <= 24) return 2;
+  if (length <= 48) return 4;
+  if (length <= 90) return 8;
+  if (length <= 140) return 12;
+  return 16;
+}
+
+String _safeDateLabel(String raw) {
+  if (raw.length >= 10) {
+    return raw.substring(0, 10).replaceAll('-', '/');
+  }
+  return raw;
+}
+
+String _formatCompactVolumeLabel(double value) {
+  if (value >= 100000000) {
+    return '${(value / 100000000).toStringAsFixed(1)}億';
+  }
+  if (value >= 10000) {
+    return '${(value / 10000).toStringAsFixed(0)}万';
+  }
+  return value.toStringAsFixed(0);
+}
+
+String _documentTypeJa(String value) {
+  switch (value.trim()) {
+    case 'FYFinancialStatements_Consolidated_JP':
+      return '決算短信（連結・日本基準）';
+    case 'FYFinancialStatements_Consolidated_US':
+      return '決算短信（連結・米国基準）';
+    case 'FYFinancialStatements_NonConsolidated_JP':
+      return '決算短信（非連結・日本基準）';
+
+    case '1QFinancialStatements_Consolidated_JP':
+      return '第1四半期決算短信（連結・日本基準）';
+    case '1QFinancialStatements_Consolidated_US':
+      return '第1四半期決算短信（連結・米国基準）';
+    case '1QFinancialStatements_NonConsolidated_JP':
+      return '第1四半期決算短信（非連結・日本基準）';
+
+    case '2QFinancialStatements_Consolidated_JP':
+      return '第2四半期決算短信（連結・日本基準）';
+    case '2QFinancialStatements_Consolidated_US':
+      return '第2四半期決算短信（連結・米国基準）';
+    case '2QFinancialStatements_NonConsolidated_JP':
+      return '第2四半期決算短信（非連結・日本基準）';
+
+    case '3QFinancialStatements_Consolidated_JP':
+      return '第3四半期決算短信（連結・日本基準）';
+    case '3QFinancialStatements_Consolidated_US':
+      return '第3四半期決算短信（連結・米国基準）';
+    case '3QFinancialStatements_NonConsolidated_JP':
+      return '第3四半期決算短信（非連結・日本基準）';
+
+    case 'OtherPeriodFinancialStatements_Consolidated_JP':
+      return 'その他四半期決算短信（連結・日本基準）';
+    case 'OtherPeriodFinancialStatements_Consolidated_US':
+      return 'その他四半期決算短信（連結・米国基準）';
+    case 'OtherPeriodFinancialStatements_NonConsolidated_JP':
+      return 'その他四半期決算短信（非連結・日本基準）';
+
+    case 'FYFinancialStatements_Consolidated_JMIS':
+      return '決算短信（連結・JMIS）';
+    case '1QFinancialStatements_Consolidated_JMIS':
+      return '第1四半期決算短信（連結・JMIS）';
+    case '2QFinancialStatements_Consolidated_JMIS':
+      return '第2四半期決算短信（連結・JMIS）';
+    case '3QFinancialStatements_Consolidated_JMIS':
+      return '第3四半期決算短信（連結・JMIS）';
+    case 'OtherPeriodFinancialStatements_Consolidated_JMIS':
+      return 'その他四半期決算短信（連結・JMIS）';
+
+    case 'FYFinancialStatements_NonConsolidated_IFRS':
+      return '決算短信（非連結・IFRS）';
+    case '1QFinancialStatements_NonConsolidated_IFRS':
+      return '第1四半期決算短信（非連結・IFRS）';
+    case '2QFinancialStatements_NonConsolidated_IFRS':
+      return '第2四半期決算短信（非連結・IFRS）';
+    case '3QFinancialStatements_NonConsolidated_IFRS':
+      return '第3四半期決算短信（非連結・IFRS）';
+    case 'OtherPeriodFinancialStatements_NonConsolidated_IFRS':
+      return 'その他四半期決算短信（非連結・IFRS）';
+
+    case 'FYFinancialStatements_Consolidated_IFRS':
+      return '決算短信（連結・IFRS）';
+    case '1QFinancialStatements_Consolidated_IFRS':
+      return '第1四半期決算短信（連結・IFRS）';
+    case '2QFinancialStatements_Consolidated_IFRS':
+      return '第2四半期決算短信（連結・IFRS）';
+    case '3QFinancialStatements_Consolidated_IFRS':
+      return '第3四半期決算短信（連結・IFRS）';
+    case 'OtherPeriodFinancialStatements_Consolidated_IFRS':
+      return 'その他四半期決算短信（連結・IFRS）';
+
+    case 'FYFinancialStatements_NonConsolidated_Foreign':
+      return '決算短信（非連結・外国株）';
+    case '1QFinancialStatements_NonConsolidated_Foreign':
+      return '第1四半期決算短信（非連結・外国株）';
+    case '2QFinancialStatements_NonConsolidated_Foreign':
+      return '第2四半期決算短信（非連結・外国株）';
+    case '3QFinancialStatements_NonConsolidated_Foreign':
+      return '第3四半期決算短信（非連結・外国株）';
+    case 'OtherPeriodFinancialStatements_NonConsolidated_Foreign':
+      return 'その他四半期決算短信（非連結・外国株）';
+
+    case 'FYFinancialStatements_Consolidated_Foreign':
+      return '決算短信（連結・外国株）';
+    case '1QFinancialStatements_Consolidated_Foreign':
+      return '第1四半期決算短信（連結・外国株）';
+    case '2QFinancialStatements_Consolidated_Foreign':
+      return '第2四半期決算短信（連結・外国株）';
+    case '3QFinancialStatements_Consolidated_Foreign':
+      return '第3四半期決算短信（連結・外国株）';
+    case 'OtherPeriodFinancialStatements_Consolidated_Foreign':
+      return 'その他四半期決算短信（連結・外国株）';
+
+    case 'FYFinancialStatements_Consolidated_REIT':
+      return '決算短信（REIT）';
+
+    case 'DividendForecastRevision':
+      return '配当予想の修正';
+    case 'EarnForecastRevision':
+      return '業績予想の修正';
+    case 'REITDividendForecastRevision':
+      return '分配予想の修正';
+    case 'REITEarnForecastRevision':
+      return '利益予想の修正';
+
+    default:
+      if (value.trim().isEmpty) return '-';
+      return value;
+  }
+} 
 
   Future<Set<String>> _loadReadNewsKeys() async {
     final prefs = await SharedPreferences.getInstance();
@@ -265,6 +463,40 @@ class _StockDetailPageState extends State<StockDetailPage>
     }
   }
 
+  Future<void> _reloadAll() async {
+    try {
+      final summary = await repository.fetchSummary(widget.code);
+      final chart = await repository.fetchChart(widget.code);
+      final news = await newsRepo.fetchNews(widget.code);
+      final metrics = await repository.fetchMetrics(widget.code);
+      final company = await repository.fetchCompany(widget.code);
+
+      if (!mounted) return;
+
+      final sortedNews = [...news]..sort((a, b) {
+        final ad = _parseNewsDate(a.publishedAt);
+        final bd = _parseNewsDate(b.publishedAt);
+        return bd.compareTo(ad);
+      });
+
+      setState(() {
+        _summary = summary;
+        _chart = chart;
+        _allNews = sortedNews;
+        _metrics = metrics;
+        _company = company;
+
+        _setupInitialVisibleNews();
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('再読み込みに失敗しました: $e')),
+      );
+    }
+  }
+
   List<StockChartPoint> _filteredChart() {
     if (_chart.isEmpty) return [];
     final total = _chart.length;
@@ -333,6 +565,90 @@ class _StockDetailPageState extends State<StockDetailPage>
 
     return result;
   }
+    String _dashIfZero(num? value) {
+      if (value == null || value == 0) return '-';
+      return value.toString();
+    }
+
+    String _formatJapaneseMoney(num? value) {
+      if (value == null || value == 0) return '-';
+
+      final v = value.toDouble().abs();
+      final sign = value < 0 ? '-' : '';
+
+      if (v >= 1000000000000) {
+        final t = v / 1000000000000;
+        return '$sign${_trimTrailingZero(t)}兆円';
+      }
+
+      if (v >= 100000000) {
+        final oku = v / 100000000;
+        return '$sign${_trimTrailingZero(oku)}億円';
+      }
+
+      if (v >= 10000) {
+        final man = v / 10000;
+        return '$sign${_trimTrailingZero(man)}万円';
+      }
+
+      return '$sign${_trimTrailingZero(v)}円';
+    }
+
+    String _formatJapaneseShares(num? value) {
+      if (value == null || value == 0) return '-';
+
+      final v = value.toDouble().abs();
+      final sign = value < 0 ? '-' : '';
+
+      if (v >= 100000000) {
+        final oku = v / 100000000;
+        return '$sign${_trimTrailingZero(oku)}億株';
+      }
+
+      if (v >= 10000) {
+        final man = v / 10000;
+        return '$sign${_trimTrailingZero(man)}万株';
+      }
+
+      return '$sign${_trimTrailingZero(v)}株';
+    }
+
+    String _formatYen(num? value) {
+      if (value == null || value == 0) return '-';
+      return '${_trimTrailingZero(value.toDouble())}円';
+    }
+
+    String _formatPercent(num? value) {
+      if (value == null || value == 0) return '-';
+      return '${_trimTrailingZero(value.toDouble())}%';
+    }
+
+    String _trimTrailingZero(double value) {
+      if (value % 1 == 0) {
+        return value.toStringAsFixed(0);
+      }
+      if (value >= 100) {
+        return value.toStringAsFixed(1);
+      }
+      if (value >= 10) {
+        return value.toStringAsFixed(2);
+      }
+      return value.toStringAsFixed(2);
+    }
+
+    String _shortDateLabel(String raw) {
+      if (raw.length >= 10) {
+        return raw.substring(5, 10);
+      }
+      return raw;
+    }
+
+    String _priceAxisLabel(double value) {
+      if (value >= 1000) {
+        return '${(value / 1000).toStringAsFixed(1)}K';
+      }
+      return value.toStringAsFixed(0);
+    }
 
   Widget _buildHeader() {
     final s = _summary!;
@@ -423,8 +739,8 @@ class _StockDetailPageState extends State<StockDetailPage>
                       ? '${isPlus ? '+' : ''}${s.changePct.toStringAsFixed(2)}%'
                       : '-',
                   valueColor: isPlus
-                      ? const Color(0xFF16A34A)
-                      : const Color(0xFFDC2626),
+                      ? const Color(0xFFDC2626)
+                      : const Color(0xFF16A34A)
                 ),
               ),
             ],
@@ -484,122 +800,195 @@ class _StockDetailPageState extends State<StockDetailPage>
   }
 
   Widget _buildSummaryTab() {
-    final s = _summary!;
+    final s = _summary;
     final m = _metrics;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+    if (s == null || m == null) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _reloadAll,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(12),
+        children: [
+
+          // 現在値カード
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 14),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _miniMetric('高値', _formatPrice(s.high)),
+                      ),
+                      Expanded(
+                        child: _miniMetric('安値', _formatPrice(s.low)),
+                      ),
+                      Expanded(
+                        child: _miniMetric('始値', _formatPrice(s.open)),
+                      ),
+                      Expanded(
+                        child: _miniMetric('出来高', _formatJapaneseShares(s.volume)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // 開示情報
+          _sectionCard(
+            title: '開示情報',
+            child: Column(
+              children: [
+                _infoRow('開示日', _dash(m.disclosedDate)),
+                _infoRow('開示時刻', _dash(m.disclosedTime)),
+                _infoRow('書類種別', _documentTypeJa(m.typeOfDocument)),
+                _infoRow('対象期末', _dash(m.currentPeriodEndDate)),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // 決算サマリー
+          _sectionCard(
+            title: '決算サマリー',
+            child: Column(
+              children: [
+                _infoRow('売上高', _formatJapaneseMoney(m.netSales)),
+                _infoRow('営業利益', _formatJapaneseMoney(m.operatingProfit)),
+                _infoRow('経常利益', _formatJapaneseMoney(m.ordinaryProfit)),
+                _infoRow('純利益', _formatJapaneseMoney(m.profit)),
+                _infoRow('EPS', _formatYen(m.earningsPerShare)),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // 業績予想
+          _sectionCard(
+            title: '会社予想',
+            child: Column(
+              children: [
+                _infoRow('売上高予想', _formatJapaneseMoney(m.forecastNetSales)),
+                _infoRow('営業利益予想', _formatJapaneseMoney(m.forecastOperatingProfit)),
+                _infoRow('経常利益予想', _formatJapaneseMoney(m.forecastOrdinaryProfit)),
+                _infoRow('純利益予想', _formatJapaneseMoney(m.forecastProfit)),
+                _infoRow('年間配当予想', _formatYen(m.annualDividendPerShareForecast)),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+Widget _sectionCard({
+  required String title,
+  required Widget child,
+}) {
+  return Card(
+    elevation: 2,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _infoRow(String label, String value) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
       children: [
-        StockSectionCard(
-          title: '当日データ',
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(child: _infoTile('現在価格', s.price > 0 ? '¥${s.price.toStringAsFixed(0)}' : '-')),
-                  const SizedBox(width: 10),
-                  Expanded(child: _infoTile('前日比', '${s.changePct >= 0 ? '+' : ''}${s.changePct.toStringAsFixed(2)}%')),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(child: _infoTile('始値', s.open > 0 ? '¥${s.open.toStringAsFixed(0)}' : '-')),
-                  const SizedBox(width: 10),
-                  Expanded(child: _infoTile('高値', s.high > 0 ? '¥${s.high.toStringAsFixed(0)}' : '-')),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(child: _infoTile('安値', s.low > 0 ? '¥${s.low.toStringAsFixed(0)}' : '-')),
-                  const SizedBox(width: 10),
-                  Expanded(child: _infoTile('出来高', s.volume > 0 ? s.volume.toStringAsFixed(0) : '-')),
-                ],
-              ),
-            ],
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.black54,
+              fontSize: 14,
+            ),
           ),
         ),
-        const SizedBox(height: 12),
-        StockSectionCard(
-          title: '開示サマリー',
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(child: _infoTile('開示日', _textOrDash(m?.disclosedDate))),
-                  const SizedBox(width: 10),
-                  Expanded(child: _infoTile('開示時刻', _textOrDash(m?.disclosedTime))),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(child: _infoTile('書類種別', _textOrDash(m?.typeOfDocument))),
-                  const SizedBox(width: 10),
-                  Expanded(child: _infoTile('対象期間', _textOrDash(m?.currentPeriodEndDate))),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        StockSectionCard(
-          title: '決算サマリー',
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(child: _infoTile('売上高', _numOrDash(m?.netSales))),
-                  const SizedBox(width: 10),
-                  Expanded(child: _infoTile('営業利益', _numOrDash(m?.operatingProfit))),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(child: _infoTile('経常利益', _numOrDash(m?.ordinaryProfit))),
-                  const SizedBox(width: 10),
-                  Expanded(child: _infoTile('当期純利益', _numOrDash(m?.profit))),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(child: _infoTile('EPS', _numOrDash(m?.earningsPerShare))),
-                  const SizedBox(width: 10),
-                  Expanded(child: _infoTile('年間配当予想', _numOrDash(m?.annualDividendPerShareForecast))),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        StockSectionCard(
-          title: '業績予想',
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(child: _infoTile('売上高予想', _numOrDash(m?.forecastNetSales))),
-                  const SizedBox(width: 10),
-                  Expanded(child: _infoTile('営業利益予想', _numOrDash(m?.forecastOperatingProfit))),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(child: _infoTile('経常利益予想', _numOrDash(m?.forecastOrdinaryProfit))),
-                  const SizedBox(width: 10),
-                  Expanded(child: _infoTile('当期純利益予想', _numOrDash(m?.forecastProfit))),
-                ],
-              ),
-            ],
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
-    );
-  }
+    ),
+  );
+}
+
+Widget _miniMetric(String label, String value) {
+  return Column(
+    children: [
+      Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12,
+          color: Colors.black54,
+        ),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        value,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ],
+  );
+}
+
+String _dash(String? value) {
+  if (value == null || value.isEmpty) return '-';
+  return value;
+}
+
+String _formatPrice(double value) {
+  if (value == 0) return '-';
+  return value.toStringAsFixed(0);
+}
 
 Widget _infoTile(String title, String value) {
   return Container(
@@ -649,6 +1038,7 @@ String _numOrDash(num? value) {
             children: [
               Wrap(
                 spacing: 8,
+                runSpacing: 8,
                 children: ['1M', '3M', '6M', '1Y', 'ALL']
                     .map(
                       (range) => ChoiceChip(
@@ -657,6 +1047,7 @@ String _numOrDash(num? value) {
                         onSelected: (_) {
                           setState(() {
                             _selectedRange = range;
+                            _touchedPriceIndex = null;
                           });
                         },
                       ),
@@ -673,6 +1064,7 @@ String _numOrDash(num? value) {
                 onSelectionChanged: (value) {
                   setState(() {
                     _chartType = value.first;
+                    _touchedPriceIndex = null;
                   });
                 },
               ),
@@ -680,6 +1072,7 @@ String _numOrDash(num? value) {
           ),
         ),
         const SizedBox(height: 12),
+
         StockSectionCard(
           title: '価格チャート',
           child: SizedBox(
@@ -691,27 +1084,194 @@ String _numOrDash(num? value) {
                     : _buildLineChart(points),
           ),
         ),
+
         const SizedBox(height: 12),
+
         StockSectionCard(
-          title: '移動平均線（MA5 / MA25）',
+          title: '出来高',
           child: SizedBox(
-            height: 220,
+            height: 150,
             child: points.length < 2
-                ? const Center(child: Text('移動平均データがありません'))
-                : _buildMaChart(points, ma5, ma25),
+                ? const Center(child: Text('出来高データがありません'))
+                : _buildVolumeChart(points),
           ),
         ),
+
         const SizedBox(height: 12),
+
+        StockSectionCard(
+          title: '移動平均線',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  _legendDot(const Color(0xFF94A3B8), '終値'),
+                  _legendDot(const Color(0xFFF59E0B), 'MA5'),
+                  _legendDot(const Color(0xFF7C3AED), 'MA25'),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                '短期の流れは MA5、より大きな流れは MA25 で確認します。',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 220,
+                child: points.length < 2
+                    ? const Center(child: Text('移動平均データがありません'))
+                    : _buildMaChart(points, ma5, ma25),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
         StockSectionCard(
           title: 'RSI（14）',
-          child: SizedBox(
-            height: 180,
-            child: points.length < 15
-                ? const Center(child: Text('RSIデータがありません'))
-                : _buildRsiChart(points, rsi),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '70以上: 買われすぎ / 30以下: 売られすぎの目安',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 180,
+                child: points.length < 15
+                    ? const Center(child: Text('RSIデータがありません'))
+                    : _buildRsiChart(points, rsi),
+              ),
+            ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildVolumeChart(List<StockChartPoint> points) {
+    final maxY = points.map((e) => e.volume).fold<double>(0, math.max) * 1.15;
+
+    return BarChart(
+      BarChartData(
+        minY: 0,
+        maxY: maxY == 0 ? 1 : maxY,
+        alignment: BarChartAlignment.spaceAround,
+        gridData: const FlGridData(show: true),
+        borderData: FlBorderData(show: true),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 24,
+              interval: _bottomTitleStep(points.length).toDouble(),
+              getTitlesWidget: (value, meta) {
+                final i = value.toInt();
+                if (i < 0 || i >= points.length) {
+                  return const SizedBox.shrink();
+                }
+                final step = _bottomTitleStep(points.length);
+                if (i % step != 0 && i != points.length - 1) {
+                  return const SizedBox.shrink();
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    _shortDateLabel(points[i].date),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.black54,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 42,
+              getTitlesWidget: (value, meta) {
+                return Text(
+                  _formatCompactVolumeLabel(value),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: Colors.black54,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        barTouchData: BarTouchData(
+          enabled: true,
+          handleBuiltInTouches: true,
+          touchCallback: (event, response) {
+            if (!mounted) return;
+            if (response == null || response.spot == null) {
+              setState(() {
+                _touchedPriceIndex = null;
+              });
+              return;
+            }
+            setState(() {
+              _touchedPriceIndex = response.spot!.touchedBarGroupIndex;
+            });
+          },
+          touchTooltipData: BarTouchTooltipData(
+            fitInsideHorizontally: true,
+            fitInsideVertically: true,
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final p = points[group.x.toInt()];
+              return BarTooltipItem(
+                '${_safeDateLabel(p.date)}\n'
+                '出来高: ${_formatJapaneseShares(p.volume)}',
+                const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  height: 1.4,
+                ),
+              );
+            },
+          ),
+        ),
+        barGroups: List.generate(points.length, (i) {
+          final p = points[i];
+          final rise = p.close >= p.open;
+          final isSelected = _touchedPriceIndex == i;
+
+          return BarChartGroupData(
+            x: i,
+            showingTooltipIndicators: isSelected ? const [0] : const [],
+            barRods: [
+              BarChartRodData(
+                toY: p.volume,
+                width: isSelected ? 8 : 6,
+                color: rise
+                    ? const Color(0xFFDC2626)
+                    : const Color(0xFF16A34A),
+                borderRadius: BorderRadius.circular(2),
+                borderSide: isSelected
+                    ? const BorderSide(color: Colors.black54, width: 1)
+                    : BorderSide.none,
+              ),
+            ],
+          );
+        }),
+      ),
     );
   }
 
@@ -728,6 +1288,68 @@ String _numOrDash(num? value) {
         gridData: const FlGridData(show: true),
         titlesData: _chartTitles(points),
         borderData: FlBorderData(show: true),
+        lineTouchData: LineTouchData(
+          handleBuiltInTouches: true,
+          touchCallback: (event, response) {
+            if (!mounted) return;
+            if (response == null ||
+                response.lineBarSpots == null ||
+                response.lineBarSpots!.isEmpty) {
+              setState(() {
+                _touchedPriceIndex = null;
+              });
+              return;
+            }
+            setState(() {
+              _touchedPriceIndex = response.lineBarSpots!.first.x.toInt();
+            });
+          },
+          getTouchedSpotIndicator: (barData, spotIndexes) {
+            return spotIndexes.map((index) {
+              return TouchedSpotIndicatorData(
+                FlLine(
+                  color: const Color(0xFF64748B),
+                  strokeWidth: 1,
+                  dashArray: [4, 4],
+                ),
+                FlDotData(
+                  show: true,
+                  getDotPainter: (spot, percent, bar, i) {
+                    return FlDotCirclePainter(
+                      radius: 4,
+                      color: const Color(0xFF2563EB),
+                      strokeWidth: 2,
+                      strokeColor: Colors.white,
+                    );
+                  },
+                ),
+              );
+            }).toList();
+          },
+          touchTooltipData: LineTouchTooltipData(
+            fitInsideHorizontally: true,
+            fitInsideVertically: true,
+            getTooltipItems: (spots) {
+              return spots.map((spot) {
+                final idx = spot.x.toInt();
+                final p = points[idx];
+                return LineTooltipItem(
+                  '${_safeDateLabel(p.date)}\n'
+                  '始値: ${_formatYen(p.open)}\n'
+                  '高値: ${_formatYen(p.high)}\n'
+                  '安値: ${_formatYen(p.low)}\n'
+                  '終値: ${_formatYen(p.close)}\n',
+                  const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    height: 1.04,
+                  ),
+                );
+              }).toList();
+            },
+          ),
+        ),
         lineBarsData: [
           LineChartBarData(
             isCurved: false,
@@ -767,6 +1389,65 @@ String _numOrDash(num? value) {
         gridData: const FlGridData(show: true),
         titlesData: _chartTitles(points),
         borderData: FlBorderData(show: true),
+        lineTouchData: LineTouchData(
+          handleBuiltInTouches: true,
+          touchCallback: (event, response) {
+            if (!mounted) return;
+            if (response == null ||
+                response.lineBarSpots == null ||
+                response.lineBarSpots!.isEmpty) {
+              setState(() {
+                _touchedMaIndex = null;
+              });
+              return;
+            }
+            setState(() {
+              _touchedMaIndex = response.lineBarSpots!.first.x.toInt();
+            });
+          },
+          getTouchedSpotIndicator: (barData, spotIndexes) {
+            return spotIndexes.map((index) {
+              return TouchedSpotIndicatorData(
+                FlLine(
+                  color: const Color(0xFF64748B),
+                  strokeWidth: 1,
+                  dashArray: [4, 4],
+                ),
+                FlDotData(
+                  show: true,
+                  getDotPainter: (spot, percent, bar, i) {
+                    return FlDotCirclePainter(
+                      radius: 3.5,
+                      color: bar.color ?? Colors.blue,
+                      strokeWidth: 1.5,
+                      strokeColor: Colors.white,
+                    );
+                  },
+                ),
+              );
+            }).toList();
+          },
+          touchTooltipData: LineTouchTooltipData(
+            fitInsideHorizontally: true,
+            fitInsideVertically: true,
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots.map((spot) {
+                String label = '終値';
+                if (spot.barIndex == 1) label = 'MA5';
+                if (spot.barIndex == 2) label = 'MA25';
+
+                return LineTooltipItem(
+                  '$label: ${_formatYen(spot.y)}',
+                  const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                );
+              }).toList();
+            },
+          ),
+        ),
         lineBarsData: [
           LineChartBarData(
             isCurved: false,
@@ -811,9 +1492,106 @@ String _numOrDash(num? value) {
         borderData: FlBorderData(show: true),
         extraLinesData: ExtraLinesData(
           horizontalLines: [
-            HorizontalLine(y: 70, color: Colors.redAccent, strokeWidth: 1),
-            HorizontalLine(y: 30, color: Colors.green, strokeWidth: 1),
+            HorizontalLine(
+              y: 70,
+              color: Colors.redAccent,
+              strokeWidth: 1,
+              dashArray: [6, 4],
+              label: HorizontalLineLabel(
+                show: true,
+                alignment: Alignment.topRight,
+                padding: const EdgeInsets.only(right: 6, bottom: 2),
+                style: const TextStyle(fontSize: 10, color: Colors.redAccent),
+                labelResolver: (_) => '70',
+              ),
+            ),
+            HorizontalLine(
+              y: 50,
+              color: Colors.black26,
+              strokeWidth: 1,
+              dashArray: [4, 4],
+              label: HorizontalLineLabel(
+                show: true,
+                alignment: Alignment.topRight,
+                padding: const EdgeInsets.only(right: 6, bottom: 2),
+                style: const TextStyle(fontSize: 10, color: Colors.black45),
+                labelResolver: (_) => '50',
+              ),
+            ),
+            HorizontalLine(
+              y: 30,
+              color: Colors.green,
+              strokeWidth: 1,
+              dashArray: [6, 4],
+              label: HorizontalLineLabel(
+                show: true,
+                alignment: Alignment.bottomRight,
+                padding: const EdgeInsets.only(right: 6, top: 2),
+                style: const TextStyle(fontSize: 10, color: Colors.green),
+                labelResolver: (_) => '30',
+              ),
+            ),
           ],
+        ),
+        lineTouchData: LineTouchData(
+          handleBuiltInTouches: true,
+          touchCallback: (event, response) {
+            if (!mounted) return;
+            if (response == null ||
+                response.lineBarSpots == null ||
+                response.lineBarSpots!.isEmpty) {
+              setState(() {
+                _touchedRsiIndex = null;
+              });
+              return;
+            }
+            setState(() {
+              _touchedRsiIndex = response.lineBarSpots!.first.x.toInt();
+            });
+          },
+          getTouchedSpotIndicator: (barData, spotIndexes) {
+            return spotIndexes.map((index) {
+              return TouchedSpotIndicatorData(
+                FlLine(
+                  color: const Color(0xFF64748B),
+                  strokeWidth: 1,
+                  dashArray: [4, 4],
+                ),
+                FlDotData(
+                  show: true,
+                  getDotPainter: (spot, percent, bar, i) {
+                    return FlDotCirclePainter(
+                      radius: 4,
+                      color: const Color(0xFF0F766E),
+                      strokeWidth: 2,
+                      strokeColor: Colors.white,
+                    );
+                  },
+                ),
+              );
+            }).toList();
+          },
+          touchTooltipData: LineTouchTooltipData(
+            fitInsideHorizontally: true,
+            fitInsideVertically: true,
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots.map((spot) {
+                final idx = spot.x.toInt();
+                final date = (idx >= 0 && idx < points.length)
+                    ? _safeDateLabel(points[idx].date)
+                    : '';
+                return LineTooltipItem(
+                  '$date\nRSI: ${spot.y.toStringAsFixed(1)}',
+                  const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                );
+              }).toList();
+            },
+          ),
         ),
         lineBarsData: [
           LineChartBarData(
@@ -840,24 +1618,73 @@ String _numOrDash(num? value) {
         gridData: const FlGridData(show: true),
         titlesData: _chartTitles(points),
         borderData: FlBorderData(show: true),
+        barTouchData: BarTouchData(
+          enabled: true,
+          handleBuiltInTouches: true,
+          touchCallback: (event, response) {
+            if (!mounted) return;
+            if (response == null || response.spot == null) {
+              setState(() {
+                _touchedPriceIndex = null;
+              });
+              return;
+            }
+            setState(() {
+              _touchedPriceIndex = response.spot!.touchedBarGroupIndex;
+            });
+          },
+          touchTooltipData: BarTouchTooltipData(
+            fitInsideHorizontally: true,
+            fitInsideVertically: true,
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              if (rodIndex != 1) return null;
+
+              final p = points[group.x.toInt()];
+
+              return BarTooltipItem(
+                '${_safeDateLabel(p.date)}\n'
+                '始値: ${_formatYen(p.open)}\n'
+                '高値: ${_formatYen(p.high)}\n'
+                '安値: ${_formatYen(p.low)}\n'
+                '終値: ${_formatYen(p.close)}\n',
+                const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  height: 1.04,
+                ),
+              );
+            },
+          ),
+        ),
         barGroups: List.generate(points.length, (i) {
           final p = points[i];
           final rise = p.close >= p.open;
+          final color = rise
+              ? const Color(0xFF16A34A)
+              : const Color(0xFFDC2626);
+          final isSelected = _touchedPriceIndex == i;
 
           return BarChartGroupData(
             x: i,
+            showingTooltipIndicators: isSelected ? const [1] : const [],
             barRods: [
               BarChartRodData(
                 fromY: p.low,
                 toY: p.high,
                 width: 2,
-                color: rise ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                color: color,
+                borderRadius: BorderRadius.zero,
               ),
               BarChartRodData(
                 fromY: math.min(p.open, p.close),
                 toY: math.max(p.open, p.close),
-                width: 8,
-                color: rise ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                width: isSelected ? 10 : 8,
+                color: color,
+                borderRadius: BorderRadius.circular(1),
+                borderSide: isSelected
+                    ? const BorderSide(color: Colors.black54, width: 1)
+                    : BorderSide.none,
               ),
             ],
           );
@@ -867,28 +1694,42 @@ String _numOrDash(num? value) {
   }
 
   FlTitlesData _chartTitles(List<StockChartPoint> points) {
+    final step = _bottomTitleStep(points.length);
+
     return FlTitlesData(
       topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
       rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-      leftTitles: const AxisTitles(
-        sideTitles: SideTitles(showTitles: true, reservedSize: 44),
+      leftTitles: AxisTitles(
+        sideTitles: SideTitles(
+          showTitles: true,
+          reservedSize: 44,
+          getTitlesWidget: (value, meta) {
+            return Text(
+              _priceAxisLabel(value),
+              style: const TextStyle(fontSize: 11, color: Colors.black54),
+            );
+          },
+        ),
       ),
       bottomTitles: AxisTitles(
         sideTitles: SideTitles(
           showTitles: true,
-          interval: math.max(1, (points.length / 4).floor()).toDouble(),
+          reservedSize: 28,
+          interval: step.toDouble(),
           getTitlesWidget: (value, meta) {
             final i = value.toInt();
             if (i < 0 || i >= points.length) {
               return const SizedBox.shrink();
             }
-            final date = points[i].date;
-            final short = date.length >= 10 ? date.substring(5, 10) : date;
+            if (i % step != 0 && i != points.length - 1) {
+              return const SizedBox.shrink();
+            }
+
             return Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                short,
-                style: const TextStyle(fontSize: 10),
+                _shortDateLabel(points[i].date),
+                style: const TextStyle(fontSize: 10, color: Colors.black54),
               ),
             );
           },
@@ -1118,3 +1959,4 @@ Widget _buildCompanyTab() {
     );
   }
 }
+

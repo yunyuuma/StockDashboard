@@ -43,6 +43,7 @@ public class JQuantsClient {
         );
     }
 
+    // 概要タブ用
     public JQuantsFinSummaryResponse getFinSummary(String code) {
         return get(
                 UriComponentsBuilder

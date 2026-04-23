@@ -28,22 +28,6 @@ public class StockDetailService {
     private final StockService stockService;
     private final CompanyProfileRepository companyProfileRepository;
 
-    private StockMetricsResponse emptyMetrics() {
-        return new StockMetricsResponse(
-                "",
-                "",
-                "",
-                "",
-                0, 0, 0, 0, 0,
-                0, 0, 0, 0,
-                0
-        );
-    }
-
-    private String str(String value) {
-        return value == null ? "" : value;
-    }
-
     public StockDetailResponse getSummary(String code) {
         String normalizedCode = normalizeCodeForApi(code);
 
@@ -122,13 +106,34 @@ public class StockDetailService {
             JQuantsFinSummaryResponse finRes = jQuantsClient.getFinSummary(normalizedCode);
             List<JQuantsFinSummaryResponse.Item> items = safeFin(finRes);
 
-            items.sort(Comparator.comparing(JQuantsFinSummaryResponse.Item::getDisclosedDate));
+            items.sort(Comparator.comparing(
+                    item -> str(item.getDisclosedDate()) + str(item.getDisclosureNumber())
+            ));
 
             if (items.isEmpty()) {
                 return emptyMetrics();
             }
 
-            JQuantsFinSummaryResponse.Item latest = items.get(items.size() - 1);
+            JQuantsFinSummaryResponse.Item latest = null;
+
+            for (int i = items.size() - 1; i >= 0; i--) {
+                JQuantsFinSummaryResponse.Item x = items.get(i);
+                if (x.getNetSales() != null
+                        || x.getOperatingProfit() != null
+                        || x.getOrdinaryProfit() != null
+                        || x.getProfit() != null
+                        || x.getEarningsPerShare() != null
+                        || x.getForecastNetSales() != null
+                        || x.getForecastProfit() != null
+                        || x.getAnnualDividendPerShareForecast() != null) {
+                    latest = x;
+                    break;
+                }
+            }
+
+            if (latest == null) {
+                latest = items.get(items.size() - 1);
+            }
 
             return new StockMetricsResponse(
                     str(latest.getDisclosedDate()),
@@ -147,10 +152,11 @@ public class StockDetailService {
                     nvl(latest.getForecastOrdinaryProfit()),
                     nvl(latest.getForecastProfit()),
 
-                    nvl(latest.getForecastAnnualDividendPerShare())
+                    nvl(latest.getAnnualDividendPerShareForecast())
             );
 
         } catch (Exception e) {
+            e.printStackTrace();
             return emptyMetrics();
         }
     }
@@ -225,6 +231,22 @@ public class StockDetailService {
             return "";
         }
         return code.trim().toUpperCase();
+    }
+
+    private StockMetricsResponse emptyMetrics() {
+        return new StockMetricsResponse(
+                "",
+                "",
+                "",
+                "",
+                0, 0, 0, 0, 0,
+                0, 0, 0, 0,
+                0
+        );
+    }
+
+    private String str(String value) {
+        return value == null ? "" : value;
     }
 
     private double parseDivRate(String value) {

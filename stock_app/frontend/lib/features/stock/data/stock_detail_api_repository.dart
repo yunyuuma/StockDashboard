@@ -14,10 +14,15 @@ class StockDetailApiRepository {
 
   Future<StockDetailSummary> fetchSummary(String code) async {
     final uri = Uri.parse('$baseUrl/api/stocks/$code');
-    final res = await _client.get(uri, headers: const {'Accept': 'application/json'});
+    final res = await _client.get(
+      uri,
+      headers: const {'Accept': 'application/json'},
+    );
 
     if (res.statusCode != 200) {
-      throw Exception('summary fetch failed: status=${res.statusCode}, body=${res.body}');
+      throw Exception(
+        'summary fetch failed: status=${res.statusCode}, body=${res.body}',
+      );
     }
 
     final map = jsonDecode(res.body) as Map<String, dynamic>;
@@ -39,10 +44,15 @@ class StockDetailApiRepository {
 
   Future<List<StockChartPoint>> fetchChart(String code) async {
     final uri = Uri.parse('$baseUrl/api/stocks/$code/chart');
-    final res = await _client.get(uri, headers: const {'Accept': 'application/json'});
+    final res = await _client.get(
+      uri,
+      headers: const {'Accept': 'application/json'},
+    );
 
     if (res.statusCode != 200) {
-      throw Exception('chart fetch failed: status=${res.statusCode}, body=${res.body}');
+      throw Exception(
+        'chart fetch failed: status=${res.statusCode}, body=${res.body}',
+      );
     }
 
     final decoded = jsonDecode(res.body);
@@ -65,10 +75,15 @@ class StockDetailApiRepository {
 
   Future<List<StockNewsItem>> fetchNews(String code) async {
     final uri = Uri.parse('$baseUrl/api/stocks/$code/news');
-    final res = await _client.get(uri, headers: const {'Accept': 'application/json'});
+    final res = await _client.get(
+      uri,
+      headers: const {'Accept': 'application/json'},
+    );
 
     if (res.statusCode != 200) {
-      throw Exception('news fetch failed: status=${res.statusCode}, body=${res.body}');
+      throw Exception(
+        'news fetch failed: status=${res.statusCode}, body=${res.body}',
+      );
     }
 
     final decoded = jsonDecode(res.body);
@@ -89,10 +104,15 @@ class StockDetailApiRepository {
 
   Future<StockMetrics> fetchMetrics(String code) async {
     final uri = Uri.parse('$baseUrl/api/stocks/$code/metrics');
-    final res = await _client.get(uri, headers: const {'Accept': 'application/json'});
+    final res = await _client.get(
+      uri,
+      headers: const {'Accept': 'application/json'},
+    );
 
     if (res.statusCode != 200) {
-      throw Exception('metrics fetch failed: status=${res.statusCode}, body=${res.body}');
+      throw Exception(
+        'metrics fetch failed: status=${res.statusCode}, body=${res.body}',
+      );
     }
 
     final map = jsonDecode(res.body) as Map<String, dynamic>;
@@ -107,7 +127,7 @@ class StockDetailApiRepository {
       operatingProfit: _toDouble(map['operatingProfit']),
       ordinaryProfit: _toDouble(map['ordinaryProfit']),
       profit: _toDouble(map['profit']),
-      earningsPerShare: _toDouble(map['earningsPerShare'] ?? map['eps']),
+      earningsPerShare: _toDouble(map['earningsPerShare']),
 
       forecastNetSales: _toDouble(map['forecastNetSales']),
       forecastOperatingProfit: _toDouble(map['forecastOperatingProfit']),
@@ -115,7 +135,7 @@ class StockDetailApiRepository {
       forecastProfit: _toDouble(map['forecastProfit']),
 
       annualDividendPerShareForecast: _toDouble(
-        map['annualDividendPerShareForecast'] ?? map['dividendForecast'],
+        map['annualDividendPerShareForecast'],
       ),
     );
   }
