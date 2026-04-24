@@ -62,7 +62,7 @@ class _CompanySearchPageState extends State<CompanySearchPage> {
 
     try {
       final favorites = await favoriteApiRepository.fetchFavorites(
-        userId: AppSession.userId,
+        userId: AppSession.userId!,
       );
 
       final codes = favorites.map((e) => e.code).toList();
@@ -135,7 +135,7 @@ class _CompanySearchPageState extends State<CompanySearchPage> {
 
     try {
       await favoriteApiRepository.deleteFavorite(
-        userId: AppSession.userId,
+        userId: AppSession.userId!,
         stockCode: company.code,
       );
 

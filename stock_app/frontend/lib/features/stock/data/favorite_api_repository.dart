@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import '../domain/app_session.dart';
 import '../domain/company.dart';
 
 class FavoriteApiRepository {
@@ -12,12 +13,21 @@ class FavoriteApiRepository {
 
   static const String baseUrl = 'http://localhost:8080';
 
+  Map<String, String> get _headers {
+    return {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      if (AppSession.token != null && AppSession.token!.isNotEmpty)
+        'Authorization': 'Bearer ${AppSession.token}',
+    };
+  }
+
   Future<List<Company>> fetchFavorites({required int userId}) async {
     final uri = Uri.parse('$baseUrl/api/favorites?userId=$userId');
 
     final res = await _client.get(
       uri,
-      headers: const {'Accept': 'application/json'},
+      headers: _headers,
     );
 
     if (res.statusCode != 200) {
@@ -38,7 +48,7 @@ class FavoriteApiRepository {
         name: (map['name'] ?? '').toString(),
         kana: '',
         market: (map['market'] ?? '').toString(),
-        industry: (map['sector'] ?? '').toString(),
+        industry: (map['sector'] ?? map['industry'] ?? '').toString(),
         price: 0,
         changePct: 0,
         marketCap: 0,
@@ -56,17 +66,14 @@ class FavoriteApiRepository {
 
     final res = await _client.post(
       uri,
-      headers: const {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
+      headers: _headers,
       body: jsonEncode({
         'userId': userId,
         'stockCode': stockCode,
       }),
     );
 
-    if (res.statusCode != 201) {
+    if (res.statusCode != 201 && res.statusCode != 200) {
       throw Exception(
         'favorite add failed: status=${res.statusCode}, body=${res.body}',
       );
@@ -81,10 +88,10 @@ class FavoriteApiRepository {
 
     final res = await _client.delete(
       uri,
-      headers: const {'Accept': 'application/json'},
+      headers: _headers,
     );
 
-    if (res.statusCode != 204) {
+    if (res.statusCode != 204 && res.statusCode != 200) {
       throw Exception(
         'favorite delete failed: status=${res.statusCode}, body=${res.body}',
       );

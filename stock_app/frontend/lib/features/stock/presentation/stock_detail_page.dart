@@ -148,7 +148,7 @@ class _StockDetailPageState extends State<StockDetailPage>
         repository.fetchChart(widget.code),
         repository.fetchMetrics(widget.code),
         repository.fetchCompany(widget.code),
-        favoriteApiRepository.fetchFavorites(userId: AppSession.userId),
+        favoriteApiRepository.fetchFavorites(userId: AppSession.userId!),
         newsRepo.fetchNews(widget.code),
         _loadReadNewsKeys(),
       ]);
@@ -422,12 +422,12 @@ String _documentTypeJa(String value) {
     try {
       if (_isFavorite) {
         await favoriteApiRepository.deleteFavorite(
-          userId: AppSession.userId,
+          userId: AppSession.userId!,
           stockCode: widget.code,
         );
       } else {
         await favoriteApiRepository.addFavorite(
-          userId: AppSession.userId,
+          userId: AppSession.userId!,
           stockCode: widget.code,
         );
       }

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../data/favorite_api_repository.dart';
 import '../data/stock_api_repository.dart';
 import '../domain/company.dart';
+import '../domain/app_session.dart';
 import 'components/stock_empty_view.dart';
 import 'components/stock_error_view.dart';
 import 'components/stock_list_card.dart';
@@ -26,7 +27,7 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  final int _userId = 1;
+  int get _userId => AppSession.userId ?? 0;
   final int _pageSize = 30;
 
   List<Company> _all = [];
