@@ -13,4 +13,10 @@ public interface FavoriteRepository extends JpaRepository<Favorite, Integer> {
     boolean existsByUserIdAndStockCode(Integer userId, String stockCode);
 
     Optional<Favorite> findByUserIdAndStockCode(Integer userId, String stockCode);
+
+    long countBy();
+
+    void deleteByUserId(Integer userId);
+
+    void deleteByStockCode(String stockCode);
 }

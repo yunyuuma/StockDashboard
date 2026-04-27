@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
-import'../data/auth_api_repository.dart';
+import '../data/auth_api_repository.dart';
 import '../domain/app_session.dart';
-import 'company_search_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -19,6 +19,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   bool _loading = false;
   bool _obscure = true;
+  bool _twoFactorEnabled = false;
   String? _error;
 
   @override
@@ -43,6 +44,7 @@ class _RegisterPageState extends State<RegisterPage> {
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text,
+        twoFactorEnabled: _twoFactorEnabled,
       );
 
       await AppSession.save(
@@ -55,13 +57,11 @@ class _RegisterPageState extends State<RegisterPage> {
 
       if (!mounted) return;
 
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const CompanySearchPage(),
-        ),
-        (route) => false,
-      );
+      if (res.role == 2) {
+        context.go('/admin');
+      } else {
+        context.go('/companies');
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -79,8 +79,12 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FB),
       appBar: AppBar(
         title: const Text('新規登録'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
       ),
       body: SafeArea(
         child: ListView(
@@ -117,12 +121,31 @@ class _RegisterPageState extends State<RegisterPage> {
                       _obscure = !_obscure;
                     });
                   },
-                  icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                  icon: Icon(
+                    _obscure ? Icons.visibility : Icons.visibility_off,
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 16),
-            if (_error != null) 
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                '2段階認証を使用する',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: const Text('ログイン時にメール認証コードを入力します。'),
+              value: _twoFactorEnabled,
+              onChanged: _loading
+                  ? null
+                  : (value) {
+                      setState(() {
+                        _twoFactorEnabled = value;
+                      });
+                    },
+            ),
+            const SizedBox(height: 16),
+            if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
@@ -130,7 +153,6 @@ class _RegisterPageState extends State<RegisterPage> {
                   style: const TextStyle(color: Colors.red),
                 ),
               ),
-
             SizedBox(
               height: 48,
               child: ElevatedButton(

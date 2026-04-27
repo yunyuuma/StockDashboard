@@ -366,10 +366,47 @@ class _MyPageState extends State<MyPage> {
               value: '${profile?.id ?? AppSession.userId ?? '-'}',
             ),
             const Divider(height: 28),
-            _InfoRow(
-              icon: Icons.security,
-              title: '2段階認証',
-              value: twoFactor ? 'ON' : 'OFF',
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: const Icon(
+                Icons.security,
+                color: Color(0xFF2563EB),
+              ),
+              title: const Text(
+                '2段階認証',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(
+                twoFactor ? 'ログイン時に認証コードを入力します。' : '通常ログインを使用します。',
+              ),
+              value: twoFactor,
+              onChanged: (value) async {
+                try {
+                  final updated =
+                      await _userRepository.updateTwoFactorSetting(
+                    enabled: value,
+                  );
+
+                  if (!mounted) return;
+
+                  setState(() {
+                    _profile = updated;
+                  });
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        value ? '2段階認証をONにしました。' : '2段階認証をOFFにしました。',
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('更新に失敗しました: $e')),
+                  );
+                }
+              },
             ),
             const Divider(height: 28),
             _InfoRow(

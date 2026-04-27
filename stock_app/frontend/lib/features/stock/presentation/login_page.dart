@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../data/auth_api_repository.dart';
 import '../domain/app_session.dart';
 import 'register_page.dart';
+import 'two_factor_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -42,6 +44,20 @@ class _LoginPageState extends State<LoginPage> {
         password: _passwordController.text,
       );
 
+      if (!mounted) return;
+
+      if (res.requiresTwoFactor) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TwoFactorPage(
+              challengeId: res.challengeId,
+            ),
+          ),
+        );
+        return;
+      }
+
       await AppSession.save(
         token: res.token,
         userId: res.userId,
@@ -53,11 +69,10 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
 
       if (res.role == 2) {
-          context.go('/admin');
-        } else {
-          context.go('/companies');
-        }
-
+        context.go('/admin');
+      } else {
+        context.go('/companies');
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -75,8 +90,12 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FB),
       appBar: AppBar(
         title: const Text('ログイン'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
       ),
       body: SafeArea(
         child: ListView(

@@ -38,6 +38,29 @@ class UserApiRepository {
     return UserProfile.fromJson(map);
   }
 
+  Future<UserProfile> updateTwoFactorSetting({
+    required bool enabled,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/users/me/2fa');
+
+    final res = await _client.put(
+      uri,
+      headers: _headers,
+      body: jsonEncode({
+        'enabled': enabled,
+      }),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception(
+        '2段階認証設定更新失敗: status=${res.statusCode}, body=${res.body}',
+      );
+    }
+
+    final map = jsonDecode(res.body) as Map<String, dynamic>;
+    return UserProfile.fromJson(map);
+  }
+
   Future<UserProfile> updateUser({
     required int userId,
     required String name,

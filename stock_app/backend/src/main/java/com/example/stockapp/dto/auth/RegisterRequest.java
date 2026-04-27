@@ -22,4 +22,6 @@ public class RegisterRequest {
     @NotBlank(message = "パスワードは必須です。")
     @Size(min = 8, max = 16, message = "パスワードは8~16文字で入力してください。")
     private String password;
+
+    private boolean twoFactorEnabled;
 }

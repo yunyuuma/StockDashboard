@@ -7,6 +7,8 @@ class AuthResponse {
   final String email;
   final int role;
   final String token;
+  final bool requiresTwoFactor;
+  final String challengeId;
 
   const AuthResponse({
     required this.userId,
@@ -14,15 +16,19 @@ class AuthResponse {
     required this.email,
     required this.role,
     required this.token,
+    required this.requiresTwoFactor,
+    required this.challengeId,
   });
 
   factory AuthResponse.fromJson(Map<String, dynamic> json) {
     return AuthResponse(
-      userId: _toInt(json['userId']),
-      name: (json['name'] ?? '').toString(),
+      userId: _toInt(json['userId'] ?? json['id']),
+      name: (json['name'] ?? json['userName'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
       role: _toInt(json['role']),
       token: (json['token'] ?? '').toString(),
+      requiresTwoFactor: json['requiresTwoFactor'] == true,
+      challengeId: (json['challengeId'] ?? '').toString(),
     );
   }
 
@@ -32,14 +38,8 @@ class AuthResponse {
     if (value is num) return value.toInt();
 
     final s = value.toString().trim().toUpperCase();
-
-    if (s == 'ADMIN' || s == 'ROLE_ADMIN' || s == '2') {
-      return 2;
-    }
-
-    if (s == 'USER' || s == 'ROLE_USER' || s == '1') {
-      return 1;
-    }
+    if (s == 'ADMIN' || s == 'ROLE_ADMIN' || s == '2') return 2;
+    if (s == 'USER' || s == 'ROLE_USER' || s == '1') return 1;
 
     return int.tryParse(s) ?? 0;
   }
@@ -105,6 +105,7 @@ class AuthApiRepository {
     required String name,
     required String email,
     required String password,
+    required bool twoFactorEnabled,
   }) async {
     final uri = Uri.parse('$baseUrl/api/auth/register');
 
@@ -115,6 +116,7 @@ class AuthApiRepository {
         'userName': name,
         'email': email,
         'password': password,
+        'twoFactorEnabled': twoFactorEnabled,
       }),
     );
 
@@ -155,6 +157,52 @@ class AuthApiRepository {
 
     final json = jsonDecode(res.body) as Map<String, dynamic>;
     return UserProfileResponse.fromJson(json);
+  }
+
+  Future<AuthResponse> verifyTwoFactor({
+    required String challengeId,
+    required String code,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/auth/2fa/verify');
+
+    final res = await _client.post(
+      uri,
+      headers: const {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({
+        'challengeId': challengeId,
+        'code': code,
+      }),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res.body, '2段階認証に失敗しました'));
+    }
+
+    return AuthResponse.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<void> resendTwoFactor({
+    required String challengeId,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/auth/2fa/resend');
+
+    final res = await _client.post(
+      uri,
+      headers: const {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({
+        'challengeId': challengeId,
+      }),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception(_extractErrorMessage(res.body, '認証コード再送に失敗しました'));
+    }
   }
 
   Future<UserProfileResponse> updateUser({
