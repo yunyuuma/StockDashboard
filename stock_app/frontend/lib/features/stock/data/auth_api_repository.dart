@@ -27,8 +27,21 @@ class AuthResponse {
   }
 
   static int _toInt(dynamic value) {
+    if (value == null) return 0;
     if (value is int) return value;
-    return int.tryParse(value.toString()) ?? 0;
+    if (value is num) return value.toInt();
+
+    final s = value.toString().trim().toUpperCase();
+
+    if (s == 'ADMIN' || s == 'ROLE_ADMIN' || s == '2') {
+      return 2;
+    }
+
+    if (s == 'USER' || s == 'ROLE_USER' || s == '1') {
+      return 1;
+    }
+
+    return int.tryParse(s) ?? 0;
   }
 }
 

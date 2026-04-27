@@ -262,6 +262,13 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
           ),
         ),
         actions: [
+          IconButton(
+              onPressed: () {
+                context.go('/mypage');
+              },
+              icon: const Icon(Icons.person),
+              tooltip: 'マイページ',
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: OutlinedButton.icon(

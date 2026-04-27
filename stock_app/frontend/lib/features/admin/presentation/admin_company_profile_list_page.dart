@@ -144,6 +144,13 @@ class _AdminCompanyProfileListPageState
       appBar: AppBar(
         title: const Text('企業情報管理'),
         actions: [
+          IconButton(
+            onPressed: () {
+              context.go('/mypage');
+            },
+            icon: const Icon(Icons.person),
+            tooltip: 'マイページ',
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: FilledButton.icon(

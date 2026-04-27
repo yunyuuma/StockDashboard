@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import '../../stock/domain/app_session.dart';
 import '../domain/company_profile_admin.dart';
 
 class AdminCompanyProfileRepository {
@@ -12,9 +13,18 @@ class AdminCompanyProfileRepository {
 
   static const String baseUrl = 'http://localhost:8080';
 
+  Map<String, String> get _headers {
+    return {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      if (AppSession.token != null && AppSession.token!.isNotEmpty)
+        'Authorization': 'Bearer ${AppSession.token}',
+    };
+  }
+
   Future<List<CompanyProfileAdmin>> fetchProfiles() async {
     final uri = Uri.parse('$baseUrl/api/admin/company-profiles');
-    final res = await _client.get(uri, headers: const {'Accept': 'application/json'});
+    final res = await _client.get(uri, headers: _headers);
 
     if (res.statusCode != 200) {
       throw Exception('company profiles fetch failed: status=${res.statusCode}, body=${res.body}');
@@ -32,7 +42,7 @@ class AdminCompanyProfileRepository {
 
   Future<CompanyProfileAdmin> fetchProfile(String stockCode) async {
     final uri = Uri.parse('$baseUrl/api/admin/company-profiles/$stockCode');
-    final res = await _client.get(uri, headers: const {'Accept': 'application/json'});
+    final res = await _client.get(uri, headers: _headers);
 
     if (res.statusCode != 200) {
       throw Exception('company profile fetch failed: status=${res.statusCode}, body=${res.body}');
@@ -52,10 +62,7 @@ class AdminCompanyProfileRepository {
 
     final res = await _client.post(
       uri,
-      headers: const {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
+      headers: _headers,
       body: jsonEncode({
         'stockCode': stockCode,
         'website': website,
@@ -65,7 +72,7 @@ class AdminCompanyProfileRepository {
       }),
     );
 
-    if (res.statusCode != 201) {
+    if (res.statusCode != 201 && res.statusCode != 200) {
       throw Exception('company profile create failed: status=${res.statusCode}, body=${res.body}');
     }
 
@@ -83,10 +90,7 @@ class AdminCompanyProfileRepository {
 
     final res = await _client.put(
       uri,
-      headers: const {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
+      headers: _headers,
       body: jsonEncode({
         'website': website,
         'description': description,
@@ -107,10 +111,7 @@ class AdminCompanyProfileRepository {
       '$baseUrl/api/admin/company-profiles/$stockCode/autofill-structured-data',
     );
 
-    final res = await _client.post(
-      uri,
-      headers: const {'Accept': 'application/json'},
-    );
+    final res = await _client.post(uri, headers: _headers);
 
     if (res.statusCode != 200) {
       throw Exception(
