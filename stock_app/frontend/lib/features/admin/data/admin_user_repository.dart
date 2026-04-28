@@ -57,6 +57,18 @@ class AdminUserRepository {
     return AdminUser.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
+  Future<void> deleteUser(int userId) async {
+    final uri = Uri.parse('$baseUrl/api/admin/users/$userId');
+
+    final res = await _client.delete(uri, headers: _headers);
+
+    if (res.statusCode != 204 && res.statusCode != 200) {
+      throw Exception(
+        'ユーザ削除失敗: status=${res.statusCode}, body=${res.body}',
+      );
+    }
+  }
+
   void dispose() {
     _client.close();
   }

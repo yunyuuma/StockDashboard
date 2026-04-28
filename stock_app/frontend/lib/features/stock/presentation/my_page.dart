@@ -145,6 +145,135 @@ class _MyPageState extends State<MyPage> {
     context.go('/login');
   }
 
+  Future<void> _showPasswordChangeDialog() async {
+    final currentController = TextEditingController();
+    final newController = TextEditingController();
+    final confirmController = TextEditingController();
+
+    String? error;
+    bool saving = false;
+    bool changed = false;
+
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return StatefulBuilder(
+            builder: (dialogContext, setDialogState) {
+              Future<void> submit() async {
+                final current = currentController.text;
+                final newPassword = newController.text;
+                final confirm = confirmController.text;
+
+                if (current.isEmpty || newPassword.isEmpty || confirm.isEmpty) {
+                  setDialogState(() => error = 'すべて入力してください。');
+                  return;
+                }
+
+                if (newPassword != confirm) {
+                  setDialogState(() => error = '新しいパスワードが一致しません。');
+                  return;
+                }
+
+                setDialogState(() {
+                  saving = true;
+                  error = null;
+                });
+
+                try {
+                  await _userRepository.updatePassword(
+                    currentPassword: current,
+                    newPassword: newPassword,
+                  );
+
+                  changed = true;
+
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop();
+                  }
+                } catch (e) {
+                  if (dialogContext.mounted) {
+                    setDialogState(() {
+                      error = e.toString().replaceFirst('Exception: ', '');
+                      saving = false;
+                    });
+                  }
+                }
+              }
+
+              return AlertDialog(
+                title: const Text('パスワード変更'),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: currentController,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: '現在のパスワード',
+                        ),
+                      ),
+                      TextField(
+                        controller: newController,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: '新しいパスワード',
+                          hintText: '8〜16文字・英字/数字/記号のうち2種類以上',
+                        ),
+                      ),
+                      TextField(
+                        controller: confirmController,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: '新しいパスワード確認',
+                        ),
+                      ),
+                      if (error != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          error!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: saving
+                        ? null
+                        : () {
+                            Navigator.of(dialogContext).pop();
+                          },
+                    child: const Text('キャンセル'),
+                  ),
+                  FilledButton(
+                    onPressed: saving ? null : submit,
+                    child: Text(saving ? '変更中...' : '変更'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+
+      if (!mounted) return;
+
+      if (changed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('パスワードを変更しました。')),
+        );
+      }
+    } finally {
+      currentController.dispose();
+      newController.dispose();
+      confirmController.dispose();
+    }
+  }
+
   String _roleLabel(int role) {
     if (role == 2) return '管理者';
     return '一般ユーザ';
@@ -408,6 +537,23 @@ class _MyPageState extends State<MyPage> {
                 }
               },
             ),
+
+            const Divider(height: 28),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(
+                Icons.lock_outline,
+                color: Color(0xFF2563EB),
+              ),
+              title: const Text(
+                'パスワード変更',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: const Text('現在のパスワードを確認して変更します。'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _showPasswordChangeDialog,
+            ),
+
             const Divider(height: 28),
             _InfoRow(
               icon: Icons.admin_panel_settings_outlined,

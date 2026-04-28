@@ -61,6 +61,28 @@ class UserApiRepository {
     return UserProfile.fromJson(map);
   }
 
+  Future<void> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/users/me/password');
+
+    final res = await _client.put(
+      uri,
+      headers: _headers,
+      body: jsonEncode({
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      }),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception(
+        'パスワード変更失敗: status=${res.statusCode}, body=${res.body}',
+      );
+    }
+  }
+
   Future<UserProfile> updateUser({
     required int userId,
     required String name,

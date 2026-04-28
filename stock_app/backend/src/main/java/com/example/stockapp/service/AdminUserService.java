@@ -3,6 +3,7 @@ package com.example.stockapp.service;
 import com.example.stockapp.dto.admin.AdminUserResponse;
 import com.example.stockapp.dto.admin.AdminUserRoleUpdateRequest;
 import com.example.stockapp.entity.User;
+import com.example.stockapp.repository.FavoriteRepository;
 import com.example.stockapp.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import java.util.List;
 public class AdminUserService {
 
     private final UserRepository userRepository;
+    private final FavoriteRepository favoriteRepository;
 
     @Transactional(readOnly = true)
     public List<AdminUserResponse> getUsers() {
@@ -24,6 +26,20 @@ public class AdminUserService {
                 .sorted(Comparator.comparing(User::getId))
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @Transactional
+    public void deleteUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("ユーザが存在しません。"));
+
+        if ("ADMIN".equalsIgnoreCase(user.getRole())) {
+            throw new IllegalArgumentException("管理者ユーザは削除できません。");
+        }
+
+        favoriteRepository.deleteByUserId(userId.intValue());
+
+        userRepository.delete(user);
     }
 
     @Transactional
@@ -41,6 +57,18 @@ public class AdminUserService {
         User saved = userRepository.save(user);
 
         return toResponse(saved);
+    }
+
+    public void delete(Long id){
+
+        User user = userRepository.findById(id)
+                .orElseThrow();
+
+        if("ADMIN".equals(user.getRole())){
+            throw new IllegalArgumentException("管理者は削除できません");
+        }
+
+        userRepository.delete(user);
     }
 
     private String normalizeRole(String role) {
@@ -70,4 +98,5 @@ public class AdminUserService {
                 user.isTwoFactorEnabled()
         );
     }
+
 }

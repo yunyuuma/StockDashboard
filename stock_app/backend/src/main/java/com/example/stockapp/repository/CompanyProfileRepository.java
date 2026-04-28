@@ -3,7 +3,6 @@ package com.example.stockapp.repository;
 import com.example.stockapp.entity.CompanyProfile;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
 import java.util.Optional;
 
 public interface CompanyProfileRepository extends JpaRepository<CompanyProfile, Integer> {
@@ -12,5 +11,5 @@ public interface CompanyProfileRepository extends JpaRepository<CompanyProfile, 
 
     boolean existsByStockCode(String stockCode);
 
-    List<CompanyProfile> findAllByOrderByStockCodeAsc();
+    void deleteByStockCode(String stockCode);
 }

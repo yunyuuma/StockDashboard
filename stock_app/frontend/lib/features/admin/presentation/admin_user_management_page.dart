@@ -7,7 +7,8 @@ class AdminUserManagementPage extends StatefulWidget {
   const AdminUserManagementPage({super.key});
 
   @override
-  State<AdminUserManagementPage> createState() => _AdminUserManagementPageState();
+  State<AdminUserManagementPage> createState() =>
+      _AdminUserManagementPageState();
 }
 
 class _AdminUserManagementPageState extends State<AdminUserManagementPage> {
@@ -82,6 +83,47 @@ class _AdminUserManagementPageState extends State<AdminUserManagementPage> {
     }
   }
 
+  Future<void> _deleteUser(AdminUser user) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('ユーザ削除'),
+        content: Text('${user.userName} を削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    try {
+      await _repository.deleteUser(user.userId);
+
+      if (!mounted) return;
+
+      setState(() {
+        _users.removeWhere((e) => e.userId == user.userId);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ユーザを削除しました。')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('削除に失敗しました: $e')),
+      );
+    }
+  }
+
   String _roleLabel(String role) {
     return role == 'ADMIN' ? '管理者' : '一般ユーザ';
   }
@@ -139,6 +181,7 @@ class _AdminUserManagementPageState extends State<AdminUserManagementPage> {
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final user = _users[index];
+              final isAdmin = user.role == 'ADMIN';
 
               return Card(
                 elevation: 0,
@@ -193,7 +236,7 @@ class _AdminUserManagementPageState extends State<AdminUserManagementPage> {
                         ),
                       ),
                       DropdownButton<String>(
-                        value: user.role == 'ADMIN' ? 'ADMIN' : 'USER',
+                        value: isAdmin ? 'ADMIN' : 'USER',
                         underline: const SizedBox.shrink(),
                         items: const [
                           DropdownMenuItem(
@@ -209,6 +252,12 @@ class _AdminUserManagementPageState extends State<AdminUserManagementPage> {
                           if (value == null) return;
                           _changeRole(user, value);
                         },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        color: Colors.red,
+                        tooltip: isAdmin ? '管理者は削除できません' : '削除',
+                        onPressed: isAdmin ? null : () => _deleteUser(user),
                       ),
                     ],
                   ),

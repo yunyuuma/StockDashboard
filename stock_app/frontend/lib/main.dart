@@ -7,12 +7,14 @@ import 'features/admin/presentation/admin_guard_page.dart';
 import 'features/admin/presentation/admin_home_page.dart';
 import 'features/admin/presentation/admin_user_management_page.dart';
 import 'features/admin/presentation/admin_usage_page.dart';
+import 'features/admin/presentation/admin_stock_management_page.dart';
 import 'features/stock/presentation/register_page.dart';
 import 'features/stock/presentation/company_register_page.dart';
 import 'features/stock/presentation/company_search_page.dart';
 import 'features/stock/presentation/stock_detail_page.dart';
 import 'features/stock/presentation/my_page.dart';
 import 'features/admin/presentation/admin_company_profile_list_page.dart';
+import 'features/admin/presentation/admin_company_profile_edit_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -76,9 +78,27 @@ class MyApp extends StatelessWidget {
         ),
       ),
       GoRoute(
+        path: '/admin/company-profiles/:stockCode',
+        builder: (context, state) {
+          final stockCode = state.pathParameters['stockCode']!;
+
+          return AdminGuardPage(
+            child: AdminCompanyProfileEditPage(
+              stockCode: stockCode,
+            ),
+          );
+        },
+      ),
+      GoRoute(
         path: '/admin/usage',
         builder: (context, state) => const AdminGuardPage(
           child: AdminUsagePage(),
+        ),
+      ),
+      GoRoute(
+        path: '/admin/stocks',
+        builder: (context, state) => const AdminGuardPage(
+          child: AdminStockManagementPage(),
         ),
       ),
     ],

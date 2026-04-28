@@ -6,6 +6,7 @@ import com.example.stockapp.service.AdminUserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
 
 import java.util.List;
 
@@ -29,4 +30,11 @@ public class AdminUserController {
     ) {
         return adminUserService.updateRole(userId, request);
     }
+
+    @DeleteMapping("/{userId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteUser(@PathVariable Long userId) {
+        adminUserService.deleteUser(userId);
+    }
+
 }

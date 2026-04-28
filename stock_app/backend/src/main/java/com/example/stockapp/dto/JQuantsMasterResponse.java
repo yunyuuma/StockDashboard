@@ -1,39 +1,94 @@
 package com.example.stockapp.dto;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.Getter;
 import lombok.Setter;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-@Getter
 @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class JQuantsMasterResponse {
 
-    @JsonProperty("pagination_key")
-    private String paginationKey;
-
     @JsonProperty("data")
     private List<Item> data;
 
-    @Getter
-    @Setter
+    @JsonProperty("pagination_key")
+    private String paginationKey;
+
+    public List<Item> getData() {
+        return data;
+    }
+
+    public String getPaginationKey() {
+        return paginationKey;
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Item {
 
-        @JsonAlias({"Code", "code"})
-        private String code;
+        private final Map<String, Object> values = new HashMap<>();
 
-        @JsonAlias({"CoName", "coName", "CompanyName", "companyName"})
-        private String companyName;
+        @JsonAnySetter
+        public void put(String key, Object value) {
+            values.put(key, value);
+        }
 
-        @JsonAlias({"MktNm", "mktNm", "MarketCodeName", "marketCodeName"})
-        private String marketCodeName;
+        public Map<String, Object> getValues() {
+            return values;
+        }
 
-        @JsonAlias({"S33Nm", "s33Nm", "Sector33CodeName", "sector33CodeName"})
-        private String sector33CodeName;
+        public String getCode() {
+            return pick("Code", "code", "LocalCode", "localCode");
+        }
+
+        public String getCompanyName() {
+            return pick(
+                    "CoName",
+                    "CompanyName",
+                    "companyName",
+                    "CompanyNameFull",
+                    "companyNameFull",
+                    "Name",
+                    "name"
+            );
+        }
+
+        public String getMarketCodeName() {
+            return pick(
+                    "MktNm",
+                    "MarketCodeName",
+                    "marketCodeName",
+                    "MarketName",
+                    "marketName",
+                    "Market",
+                    "market"
+            );
+        }
+
+        public String getSector33CodeName() {
+            return pick(
+                    "S33Nm",
+                    "Sector33CodeName",
+                    "sector33CodeName",
+                    "Sector17CodeName",
+                    "sector17CodeName",
+                    "Sector",
+                    "sector"
+            );
+        }
+
+        private String pick(String... keys) {
+            for (String key : keys) {
+                Object value = values.get(key);
+                if (value != null && !value.toString().isBlank()) {
+                    return value.toString();
+                }
+            }
+            return "";
+        }
     }
 }

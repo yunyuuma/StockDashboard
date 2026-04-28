@@ -11,7 +11,7 @@ class AdminCompanyProfileRepository {
 
   final http.Client _client;
 
-  static const String baseUrl = 'http://localhost:8080';
+  static const String baseUrl = 'http://127.0.0.1:8080';
 
   Map<String, String> get _headers {
     return {
@@ -24,10 +24,13 @@ class AdminCompanyProfileRepository {
 
   Future<List<CompanyProfileAdmin>> fetchProfiles() async {
     final uri = Uri.parse('$baseUrl/api/admin/company-profiles');
+
     final res = await _client.get(uri, headers: _headers);
 
     if (res.statusCode != 200) {
-      throw Exception('company profiles fetch failed: status=${res.statusCode}, body=${res.body}');
+      throw Exception(
+        'company profiles fetch failed: status=${res.statusCode}, body=${res.body}',
+      );
     }
 
     final decoded = jsonDecode(res.body);
@@ -36,19 +39,26 @@ class AdminCompanyProfileRepository {
     }
 
     return decoded
-        .map<CompanyProfileAdmin>((e) => CompanyProfileAdmin.fromJson(e as Map<String, dynamic>))
+        .map<CompanyProfileAdmin>(
+          (e) => CompanyProfileAdmin.fromJson(e as Map<String, dynamic>),
+        )
         .toList();
   }
 
   Future<CompanyProfileAdmin> fetchProfile(String stockCode) async {
     final uri = Uri.parse('$baseUrl/api/admin/company-profiles/$stockCode');
+
     final res = await _client.get(uri, headers: _headers);
 
     if (res.statusCode != 200) {
-      throw Exception('company profile fetch failed: status=${res.statusCode}, body=${res.body}');
+      throw Exception(
+        'company profile fetch failed: status=${res.statusCode}, body=${res.body}',
+      );
     }
 
-    return CompanyProfileAdmin.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+    return CompanyProfileAdmin.fromJson(
+      jsonDecode(res.body) as Map<String, dynamic>,
+    );
   }
 
   Future<CompanyProfileAdmin> createProfile({
@@ -73,10 +83,14 @@ class AdminCompanyProfileRepository {
     );
 
     if (res.statusCode != 201 && res.statusCode != 200) {
-      throw Exception('company profile create failed: status=${res.statusCode}, body=${res.body}');
+      throw Exception(
+        'company profile create failed: status=${res.statusCode}, body=${res.body}',
+      );
     }
 
-    return CompanyProfileAdmin.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+    return CompanyProfileAdmin.fromJson(
+      jsonDecode(res.body) as Map<String, dynamic>,
+    );
   }
 
   Future<CompanyProfileAdmin> updateProfile({
@@ -100,10 +114,14 @@ class AdminCompanyProfileRepository {
     );
 
     if (res.statusCode != 200) {
-      throw Exception('company profile update failed: status=${res.statusCode}, body=${res.body}');
+      throw Exception(
+        'company profile update failed: status=${res.statusCode}, body=${res.body}',
+      );
     }
 
-    return CompanyProfileAdmin.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+    return CompanyProfileAdmin.fromJson(
+      jsonDecode(res.body) as Map<String, dynamic>,
+    );
   }
 
   Future<void> autoFillWithStructuredData(String stockCode) async {

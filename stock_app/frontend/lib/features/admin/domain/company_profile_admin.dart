@@ -25,16 +25,28 @@ class CompanyProfileAdmin {
 
   factory CompanyProfileAdmin.fromJson(Map<String, dynamic> json) {
     return CompanyProfileAdmin(
-      id: json['id'] as int?,
+      id: _toNullableInt(json['id']),
       stockCode: (json['stockCode'] ?? '').toString(),
-      companyName: (json['companyName'] ?? '').toString(),
+      companyName: (json['stockName'] ??
+              json['companyName'] ??
+              json['name'] ??
+              json['stockCode'] ??
+              '')
+          .toString(),
       market: (json['market'] ?? '').toString(),
-      industry: (json['industry'] ?? '').toString(),
+      industry: (json['sector'] ?? json['industry'] ?? '').toString(),
       website: (json['website'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
       mapQuery: (json['mapQuery'] ?? '').toString(),
       trendsKeyword: (json['trendsKeyword'] ?? '').toString(),
-      registered: (json['registered'] ?? false) as bool,
+      registered: json['registered'] == true ||
+          json['registered'].toString().toLowerCase() == 'true',
     );
+  }
+
+  static int? _toNullableInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    return int.tryParse(value.toString());
   }
 }
