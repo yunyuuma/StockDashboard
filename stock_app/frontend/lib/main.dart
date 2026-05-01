@@ -15,6 +15,9 @@ import 'features/stock/presentation/stock_detail_page.dart';
 import 'features/stock/presentation/my_page.dart';
 import 'features/admin/presentation/admin_company_profile_list_page.dart';
 import 'features/admin/presentation/admin_company_profile_edit_page.dart';
+import 'features/trading/presentation/trading_home_page.dart';
+import 'features/trading/presentation/position_list_page.dart';
+import 'features/trading/presentation/trade_history_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -100,6 +103,18 @@ class MyApp extends StatelessWidget {
         builder: (context, state) => const AdminGuardPage(
           child: AdminStockManagementPage(),
         ),
+      ),
+      GoRoute(
+        path: '/trading',
+        builder: (context, state) => const TradingHomePage(),
+      ),
+      GoRoute(
+        path: '/trading/positions',
+        builder: (context, state) => const PositionListPage(),
+      ),
+      GoRoute(
+        path: '/trading/trades',
+        builder: (context, state) => const TradeHistoryPage(),
       ),
     ],
   );

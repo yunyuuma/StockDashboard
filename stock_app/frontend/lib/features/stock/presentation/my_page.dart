@@ -560,6 +560,25 @@ class _MyPageState extends State<MyPage> {
               title: '権限',
               value: _roleLabel(profile?.role ?? AppSession.role ?? 1),
             ),
+
+            const Divider(height: 28),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(
+                Icons.show_chart,
+                color: Color(0xFF2563EB),
+              ),
+              title: const Text(
+                '疑似売買',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: const Text('仮想残高・保有銘柄・売買履歴を確認します。'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                context.go('/trading');
+              },
+            ),
+
           ],
         ),
       ),

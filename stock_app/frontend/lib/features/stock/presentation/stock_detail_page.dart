@@ -13,6 +13,9 @@ import '../domain/stock_detail_models.dart';
 import 'components/stock_error_view.dart';
 import 'components/stock_loading_view.dart';
 import 'components/stock_section_card.dart';
+import '../../trading/data/trading_repository.dart';
+import '../../trading/domain/trading_models.dart';
+import '../../trading/presentation/order_dialog.dart';
 
 class StockDetailPage extends StatefulWidget {
   const StockDetailPage({
@@ -70,6 +73,10 @@ class _StockDetailPageState extends State<StockDetailPage>
   final StockDetailApiRepository repository = StockDetailApiRepository();
   final FavoriteApiRepository favoriteApiRepository = FavoriteApiRepository();
   final StockNewsApiRepository newsRepo = StockNewsApiRepository();
+  final TradingRepository tradingRepository = TradingRepository();
+
+  OrderBook? _orderBook;
+  bool _orderBookLoading = false;
 
   late final TabController _tabController;
   final ScrollController _newsScrollController = ScrollController();
@@ -128,7 +135,7 @@ class _StockDetailPageState extends State<StockDetailPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _newsScrollController.addListener(_onNewsScroll);
     _load();
   }
@@ -173,6 +180,7 @@ class _StockDetailPageState extends State<StockDetailPage>
 
       setState(() {
         _summary = summary;
+        _loadOrderBook(summary);
         _chart = chart;
         _metrics = metrics;
         _company = company;
@@ -460,6 +468,34 @@ String _documentTypeJa(String value) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('URLを開けませんでした')),
       );
+    }
+  }
+
+  Future<void> _loadOrderBook(StockDetailSummary summary) async {
+    if (summary.price <= 0) return;
+
+    setState(() {
+      _orderBookLoading = true;
+    });
+
+    try {
+      final board = await tradingRepository.fetchOrderBook(
+        stockCode: summary.code,
+        currentPrice: summary.price,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _orderBook = board;
+      });
+    } catch (_) {
+    } finally {
+      if (mounted) {
+        setState(() {
+          _orderBookLoading = false;
+        });
+      }
     }
   }
 
@@ -958,6 +994,324 @@ Widget _infoRow(String label, String value) {
   );
 }
 
+Widget _buildOrderBookCard() {
+  final board = _orderBook;
+
+  return StockSectionCard(
+    title: 'フル板',
+    child: _orderBookLoading
+        ? const Center(child: CircularProgressIndicator())
+        : board == null
+            ? const Text('板情報を取得できませんでした。')
+            : Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '売数量',
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        SizedBox(
+                          width: 90,
+                          child: Text(
+                            '気配値',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            '買数量',
+                            textAlign: TextAlign.left,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // 売り板：高い価格を上、現在価格に近い価格を下
+                  ...board.sellBoard.reversed.map(
+                    (row) => _orderBookRow(
+                      price: row.price,
+                      sellQuantity: row.quantity,
+                      buyQuantity: null,
+                      side: 'SELL',
+                    ),
+                  ),
+
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF2563EB).withOpacity(0.25),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Divider(
+                            color: Color(0xFF93C5FD),
+                            thickness: 1,
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Column(
+                            children: [
+                              const Text(
+                                '現在価格',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.black54,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                '¥${board.currentPrice.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  color: Color(0xFF2563EB),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Expanded(
+                          child: Divider(
+                            color: Color(0xFF93C5FD),
+                            thickness: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // 買い板：現在価格に近い価格を上、安い価格を下
+                  ...board.buyBoard.map(
+                    (row) => _orderBookRow(
+                      price: row.price,
+                      sellQuantity: null,
+                      buyQuantity: row.quantity,
+                      side: 'BUY',
+                    ),
+                  ),
+                ],
+              ),
+  );
+}
+
+Widget _orderBookRow({
+  required double price,
+  required int? sellQuantity,
+  required int? buyQuantity,
+  required String side,
+}) {
+  final isSell = side == 'SELL';
+  final color = isSell ? const Color(0xFFDC2626) : const Color(0xFF16A34A);
+
+  final quantity = sellQuantity ?? buyQuantity ?? 0;
+  final widthFactor = (quantity / 1000).clamp(0.08, 1.0);
+
+  return Container(
+    height: 36,
+    margin: const EdgeInsets.symmetric(vertical: 2),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: const Color(0xFFE5E7EB)),
+    ),
+    child: Row(
+      children: [
+        // 売数量
+        Expanded(
+          child: Stack(
+            alignment: Alignment.centerRight,
+            children: [
+              if (sellQuantity != null)
+                FractionallySizedBox(
+                  alignment: Alignment.centerRight,
+                  widthFactor: widthFactor,
+                  child: Container(
+                    height: double.infinity,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDC2626).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: Text(
+                  sellQuantity == null ? '' : '${sellQuantity}株',
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        Container(
+          width: 1,
+          height: 22,
+          color: const Color(0xFFE5E7EB),
+        ),
+
+        // 価格
+        SizedBox(
+          width: 90,
+          child: Text(
+            '¥${price.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+        ),
+
+        Container(
+          width: 1,
+          height: 22,
+          color: const Color(0xFFE5E7EB),
+        ),
+
+        // 買数量
+        Expanded(
+          child: Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              if (buyQuantity != null)
+                FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: widthFactor,
+                  child: Container(
+                    height: double.infinity,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF16A34A).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.only(left: 10),
+                child: Text(
+                  buyQuantity == null ? '' : '${buyQuantity}株',
+                  textAlign: TextAlign.left,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildTradeButtons(StockDetailSummary s) {
+  final canTrade = s.price > 0;
+
+  return Row(
+    children: [
+      Expanded(
+        child: FilledButton.icon(
+          onPressed: canTrade
+              ? () async {
+                  final result = await showOrderDialog(
+                    context: context,
+                    stockCode: s.code,
+                    stockName: s.name,
+                    currentPrice: s.price,
+                    initialSide: 'BUY',
+                  );
+
+                  if (!context.mounted || result == null) return;
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(result.message)),
+                  );
+
+                  _loadOrderBook(s);
+                }
+              : null,
+          icon: const Icon(Icons.add_shopping_cart),
+          label: const Text('買う'),
+        ),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: OutlinedButton.icon(
+          onPressed: canTrade
+              ? () async {
+                  final result = await showOrderDialog(
+                    context: context,
+                    stockCode: s.code,
+                    stockName: s.name,
+                    currentPrice: s.price,
+                    initialSide: 'SELL',
+                  );
+
+                  if (!context.mounted || result == null) return;
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(result.message)),
+                  );
+
+                  _loadOrderBook(s);
+                }
+              : null,
+          icon: const Icon(Icons.sell_outlined),
+          label: const Text('売る'),
+        ),
+      ),
+    ],
+  );
+}
+
 Widget _miniMetric(String label, String value) {
   return Column(
     children: [
@@ -990,37 +1344,37 @@ String _formatPrice(double value) {
   return value.toStringAsFixed(0);
 }
 
-Widget _infoTile(String title, String value) {
-  return Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: const Color(0xFFF8FAFC),
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: const TextStyle(fontSize: 11, color: Colors.black54)),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
+  Widget _infoTile(String title, String value) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
-String _textOrDash(String? value) {
-  return (value == null || value.isEmpty) ? '-' : value;
-}
+  String _textOrDash(String? value) {
+    return (value == null || value.isEmpty) ? '-' : value;
+  }
 
-String _numOrDash(num? value) {
-  return value == null ? '-' : value.toStringAsFixed(0);
-}
+  String _numOrDash(num? value) {
+    return value == null ? '-' : value.toStringAsFixed(0);
+  }
 
   Widget _buildChartTab() {
     final points = _filteredChart();
@@ -1889,6 +2243,36 @@ Widget _buildCompanyTab() {
   );
 }
 
+Widget _buildTradingTab() {
+  final s = _summary;
+
+  if (s == null) {
+    return const Center(child: CircularProgressIndicator());
+  }
+
+  return ListView(
+    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+    children: [
+      StockSectionCard(
+        title: '売買',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _metricHeaderBox(
+              '現在価格',
+              s.price > 0 ? '¥${s.price.toStringAsFixed(0)}' : '-',
+            ),
+            const SizedBox(height: 14),
+            _buildTradeButtons(s),
+          ],
+        ),
+      ),
+      const SizedBox(height: 12),
+      _buildOrderBookCard(),
+    ],
+  );
+}
+
   @override
   void dispose() {
     _newsScrollController.dispose();
@@ -1896,6 +2280,7 @@ Widget _buildCompanyTab() {
     repository.dispose();
     favoriteApiRepository.dispose();
     newsRepo.dispose();
+    tradingRepository.dispose();
     super.dispose();
   }
 
@@ -1938,6 +2323,7 @@ Widget _buildCompanyTab() {
                     Tab(text: 'チャート'),
                     Tab(text: 'ニュース'),
                     Tab(text: '企業情報'),
+                    Tab(text: '売買'),
                   ],
                 ),
               ),
@@ -1949,6 +2335,7 @@ Widget _buildCompanyTab() {
                     _buildChartTab(),
                     _buildNewsTab(),
                     _buildCompanyTab(),
+                    _buildTradingTab(),
                   ],
                 ),
               ),
