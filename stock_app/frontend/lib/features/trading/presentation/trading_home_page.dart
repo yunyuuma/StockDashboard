@@ -202,6 +202,13 @@ class _TradingHomePageState extends State<TradingHomePage> {
                 description: '成行・指値注文の約定履歴を確認します。',
                 onTap: () => context.go('/trading/trades'),
               ),
+              const SizedBox(height: 14),
+              _MenuCard(
+                icon: Icons.pie_chart_outline,
+                title: 'ポートフォリオ',
+                description: '総資産・保有評価額・資産推移を確認します。',
+                onTap: () => context.go('/trading/portfolio'),
+              ),
             ],
           );
         },

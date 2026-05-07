@@ -19,6 +19,7 @@ import 'features/trading/presentation/trading_home_page.dart';
 import 'features/trading/presentation/position_list_page.dart';
 import 'features/trading/presentation/trade_history_page.dart';
 import 'features/trading/presentation/order_list_page.dart';
+import 'features/trading/presentation/portfolio_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -120,6 +121,10 @@ class MyApp extends StatelessWidget {
       GoRoute(
         path: '/trading/orders',
         builder: (context, state) => const OrderListPage(),
+      ),
+      GoRoute(
+        path: '/trading/portfolio',
+        builder: (context, state) => const PortfolioPage(),
       ),
     ],
   );

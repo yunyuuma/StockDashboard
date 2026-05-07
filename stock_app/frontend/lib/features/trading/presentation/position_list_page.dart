@@ -59,33 +59,35 @@ class _PositionListPageState extends State<PositionListPage> {
     }
   }
 
-  String _yen(double value) => '¥${value.toStringAsFixed(0)}';
+  String _yen(double value) {
+    return '¥${value.toStringAsFixed(0)}';
+  }
+
+  Widget _miniInfo(String label, String value, {Color? valueColor}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.black45,
+            fontSize: 11,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+            color: valueColor ?? Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
-  Widget _miniInfo(String label, String value, {Color? valueColor}) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        label,
-        style: const TextStyle(
-          color: Colors.black45,
-          fontSize: 11,
-        ),
-      ),
-      const SizedBox(height: 4),
-      Text(
-        value,
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 13,
-          color: valueColor ?? Colors.black87,
-        ),
-      ),
-    ],
-  );
-}
-
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
@@ -139,8 +141,9 @@ class _PositionListPageState extends State<PositionListPage> {
             itemBuilder: (_, index) {
               final p = _positions[index];
 
-              final isPlus = p.profitLoss >= 0;
-              final pnlColor = isPlus ? const Color(0xFFDC2626) : const Color(0xFF16A34A);
+              final bool isPlus = p.profitLoss >= 0;
+              final Color pnlColor =
+                  isPlus ? const Color(0xFFDC2626) : const Color(0xFF16A34A);
 
               return Card(
                 elevation: 0,
@@ -171,7 +174,9 @@ class _PositionListPageState extends State<PositionListPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  p.stockName.isNotEmpty ? p.stockName : p.stockCode,
+                                  p.stockName.isNotEmpty
+                                      ? p.stockName
+                                      : p.stockCode,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
@@ -190,18 +195,39 @@ class _PositionListPageState extends State<PositionListPage> {
                           ),
                         ],
                       ),
+
                       const SizedBox(height: 14),
+
                       Row(
                         children: [
-                          Expanded(child: _miniInfo('数量', '${p.quantity}株')),
-                          Expanded(child: _miniInfo('平均単価', _yen(p.averagePrice))),
-                          Expanded(child: _miniInfo('現在価格', _yen(p.currentPrice))),
+                          Expanded(
+                            child: _miniInfo('数量', '${p.quantity}株'),
+                          ),
+                          Expanded(
+                            child: _miniInfo(
+                              '平均取得単価',
+                              _yen(p.averagePrice),
+                            ),
+                          ),
+                          Expanded(
+                            child: _miniInfo(
+                              '現在価格',
+                              _yen(p.currentPrice),
+                            ),
+                          ),
                         ],
                       ),
+
                       const SizedBox(height: 12),
+
                       Row(
                         children: [
-                          Expanded(child: _miniInfo('評価額', _yen(p.valuationAmount))),
+                          Expanded(
+                            child: _miniInfo(
+                              '評価額',
+                              _yen(p.valuationAmount),
+                            ),
+                          ),
                           Expanded(
                             child: _miniInfo(
                               '含み損益',

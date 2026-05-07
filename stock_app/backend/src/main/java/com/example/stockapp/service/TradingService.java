@@ -22,6 +22,8 @@ public class TradingService {
     private final TradeOrderRepository tradeOrderRepository;
     private final TradeRepository tradeRepository;
     private final StockRepository stockRepository;
+    private final StockPriceService stockPriceService;
+    private final PortfolioSnapshotService portfolioSnapshotService;
 
     private static final BigDecimal INITIAL_CASH = new BigDecimal("1000000");
 
@@ -33,6 +35,136 @@ public class TradingService {
                 cash.getCash(),
                 positionRepository.findByUserIdOrderByStockCodeAsc(userId).size(),
                 tradeRepository.findByUserIdOrderByTradedAtDesc(userId).size()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<PositionResponse> positions(Long userId) {
+        return positionRepository.findByUserIdOrderByStockCodeAsc(userId)
+                .stream()
+                .map(p -> {
+                    Stock stock = stockRepository.findById(p.getStockCode()).orElse(null);
+
+                    BigDecimal currentPrice = stockPriceService.getCurrentPrice(p.getStockCode());
+                    if (currentPrice == null || currentPrice.compareTo(BigDecimal.ZERO) <= 0) {
+                        currentPrice = p.getAveragePrice();
+                    }
+
+                    BigDecimal valuationAmount = currentPrice.multiply(BigDecimal.valueOf(p.getQuantity()));
+                    BigDecimal costAmount = p.getAveragePrice().multiply(BigDecimal.valueOf(p.getQuantity()));
+                    BigDecimal profitLoss = valuationAmount.subtract(costAmount);
+
+                    BigDecimal profitLossRate = BigDecimal.ZERO;
+                    if (costAmount.compareTo(BigDecimal.ZERO) > 0) {
+                        profitLossRate = profitLoss
+                                .multiply(BigDecimal.valueOf(100))
+                                .divide(costAmount, 2, RoundingMode.HALF_UP);
+                    }
+
+                    return new PositionResponse(
+                            p.getStockCode(),
+                            stock != null ? stock.getName() : "",
+                            stock != null ? stock.getMarket() : "",
+                            stock != null ? stock.getSector() : "",
+                            p.getQuantity(),
+                            p.getAveragePrice(),
+                            currentPrice,
+                            valuationAmount,
+                            profitLoss,
+                            profitLossRate
+                    );
+                })
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<TradeResponse> trades(Long userId) {
+        return tradeRepository.findByUserIdOrderByTradedAtDesc(userId)
+                .stream()
+                .map(t -> {
+                    Stock stock = stockRepository.findById(t.getStockCode()).orElse(null);
+
+                    return new TradeResponse(
+                            t.getId(),
+                            t.getStockCode(),
+                            stock != null ? stock.getName() : "",
+                            stock != null ? stock.getMarket() : "",
+                            stock != null ? stock.getSector() : "",
+                            t.getSide(),
+                            t.getQuantity(),
+                            t.getPrice(),
+                            t.getTradedAt()
+                    );
+                })
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderListResponse> orders(Long userId) {
+        return tradeOrderRepository.findByUserIdOrderByOrderedAtDesc(userId)
+                .stream()
+                .map(this::toOrderListResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderListResponse> openOrders(Long userId) {
+        return tradeOrderRepository.findByUserIdAndStatusOrderByOrderedAtDesc(userId, "OPEN")
+                .stream()
+                .map(this::toOrderListResponse)
+                .toList();
+    }
+
+    @Transactional
+    public OrderResponse order(Long userId, OrderRequest request) {
+        validate(request);
+
+        String stockCode = normalizeCode(request.getStockCode());
+        String side = request.getSide().trim().toUpperCase();
+        String orderType = request.getOrderType().trim().toUpperCase();
+
+        BigDecimal currentPrice = request.getCurrentPrice();
+        BigDecimal limitPrice = request.getLimitPrice();
+        BigDecimal stopPrice = request.getStopPrice();
+
+        boolean shouldFill = shouldFill(side, orderType, currentPrice, limitPrice, stopPrice);
+
+        TradeOrder order = new TradeOrder();
+        order.setUserId(userId);
+        order.setStockCode(stockCode);
+        order.setSide(side);
+        order.setOrderType(orderType);
+        order.setQuantity(request.getQuantity());
+        order.setLimitPrice(limitPrice);
+        order.setStopPrice(stopPrice);
+        order.setCurrentPrice(currentPrice);
+        order.setStatus(shouldFill ? "FILLED" : "OPEN");
+        order.setOrderedAt(LocalDateTime.now());
+        order.setAlgoType("NONE");
+        order.setGroupId(null);
+        order.setParentOrderId(null);
+
+        if (shouldFill) {
+            order.setFilledAt(LocalDateTime.now());
+        }
+
+        TradeOrder savedOrder = tradeOrderRepository.save(order);
+
+        if (shouldFill) {
+            executeTrade(userId, savedOrder, currentPrice);
+        }
+
+        return new OrderResponse(
+                savedOrder.getId(),
+                savedOrder.getStockCode(),
+                savedOrder.getSide(),
+                savedOrder.getOrderType(),
+                savedOrder.getQuantity(),
+                savedOrder.getLimitPrice(),
+                savedOrder.getStopPrice(),
+                savedOrder.getCurrentPrice(),
+                savedOrder.getStatus(),
+                shouldFill ? "注文が約定しました。" : "注文を受付しました。"
         );
     }
 
@@ -92,8 +224,6 @@ public class TradingService {
                 groupId,
                 entry.getId()
         );
-
-        // 子注文は親が約定するまで待機扱い
         profit.setStatus("WAITING");
         tradeOrderRepository.save(profit);
 
@@ -255,132 +385,6 @@ public class TradingService {
         return tradeOrderRepository.save(order);
     }
 
-    @Transactional(readOnly = true)
-    public List<PositionResponse> positions(Long userId) {
-        return positionRepository.findByUserIdOrderByStockCodeAsc(userId)
-                .stream()
-                .map(p -> {
-                    Stock stock = stockRepository.findById(p.getStockCode()).orElse(null);
-
-                    BigDecimal currentPrice = tradeRepository
-                            .findTopByUserIdAndStockCodeOrderByTradedAtDesc(userId, p.getStockCode())
-                            .map(Trade::getPrice)
-                            .orElse(p.getAveragePrice());
-
-                    BigDecimal valuationAmount = currentPrice.multiply(BigDecimal.valueOf(p.getQuantity()));
-                    BigDecimal costAmount = p.getAveragePrice().multiply(BigDecimal.valueOf(p.getQuantity()));
-                    BigDecimal profitLoss = valuationAmount.subtract(costAmount);
-
-                    BigDecimal profitLossRate = BigDecimal.ZERO;
-                    if (costAmount.compareTo(BigDecimal.ZERO) > 0) {
-                        profitLossRate = profitLoss
-                                .multiply(BigDecimal.valueOf(100))
-                                .divide(costAmount, 2, RoundingMode.HALF_UP);
-                    }
-
-                    return new PositionResponse(
-                            p.getStockCode(),
-                            stock != null ? stock.getName() : "",
-                            stock != null ? stock.getMarket() : "",
-                            stock != null ? stock.getSector() : "",
-                            p.getQuantity(),
-                            p.getAveragePrice(),
-                            currentPrice,
-                            valuationAmount,
-                            profitLoss,
-                            profitLossRate
-                    );
-                })
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<TradeResponse> trades(Long userId) {
-        return tradeRepository.findByUserIdOrderByTradedAtDesc(userId)
-                .stream()
-                .map(t -> {
-                    Stock stock = stockRepository.findById(t.getStockCode()).orElse(null);
-                    return new TradeResponse(
-                            t.getId(),
-                            t.getStockCode(),
-                            stock != null ? stock.getName() : "",
-                            stock != null ? stock.getMarket() : "",
-                            stock != null ? stock.getSector() : "",
-                            t.getSide(),
-                            t.getQuantity(),
-                            t.getPrice(),
-                            t.getTradedAt()
-                    );
-                })
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<OrderListResponse> orders(Long userId) {
-        return tradeOrderRepository.findByUserIdOrderByOrderedAtDesc(userId)
-                .stream()
-                .map(this::toOrderListResponse)
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<OrderListResponse> openOrders(Long userId) {
-        return tradeOrderRepository.findByUserIdAndStatusOrderByOrderedAtDesc(userId, "OPEN")
-                .stream()
-                .map(this::toOrderListResponse)
-                .toList();
-    }
-
-    @Transactional
-    public OrderResponse order(Long userId, OrderRequest request) {
-        validate(request);
-
-        String stockCode = normalizeCode(request.getStockCode());
-        String side = request.getSide().trim().toUpperCase();
-        String orderType = request.getOrderType().trim().toUpperCase();
-
-        BigDecimal currentPrice = request.getCurrentPrice();
-        BigDecimal limitPrice = request.getLimitPrice();
-        BigDecimal stopPrice = request.getStopPrice();
-
-        boolean shouldFill = shouldFill(side, orderType, currentPrice, limitPrice, stopPrice);
-
-        TradeOrder order = new TradeOrder();
-        order.setUserId(userId);
-        order.setStockCode(stockCode);
-        order.setSide(side);
-        order.setOrderType(orderType);
-        order.setQuantity(request.getQuantity());
-        order.setLimitPrice(limitPrice);
-        order.setStopPrice(stopPrice);
-        order.setCurrentPrice(currentPrice);
-        order.setStatus(shouldFill ? "FILLED" : "OPEN");
-        order.setOrderedAt(LocalDateTime.now());
-
-        if (shouldFill) {
-            order.setFilledAt(LocalDateTime.now());
-        }
-
-        TradeOrder savedOrder = tradeOrderRepository.save(order);
-
-        if (shouldFill) {
-            executeTrade(userId, savedOrder, currentPrice);
-        }
-
-        return new OrderResponse(
-                savedOrder.getId(),
-                savedOrder.getStockCode(),
-                savedOrder.getSide(),
-                savedOrder.getOrderType(),
-                savedOrder.getQuantity(),
-                savedOrder.getLimitPrice(),
-                savedOrder.getStopPrice(),
-                savedOrder.getCurrentPrice(),
-                savedOrder.getStatus(),
-                shouldFill ? "注文が約定しました。" : "注文を受付しました。"
-        );
-    }
-
     @Transactional
     public void cancelOrder(Long userId, Long orderId) {
         TradeOrder order = tradeOrderRepository.findById(orderId)
@@ -390,7 +394,7 @@ public class TradingService {
             throw new IllegalArgumentException("他ユーザの注文は取消できません。");
         }
 
-        if (!"OPEN".equals(order.getStatus())) {
+        if (!"OPEN".equals(order.getStatus()) && !"WAITING".equals(order.getStatus())) {
             throw new IllegalArgumentException("未約定注文以外は取消できません。");
         }
 
@@ -495,85 +499,33 @@ public class TradingService {
     }
 
     private void afterAlgoFilled(TradeOrder filledOrder) {
-    String algoType = filledOrder.getAlgoType();
+        String algoType = filledOrder.getAlgoType();
 
-    if (algoType == null || algoType.isBlank() || "NONE".equals(algoType)) {
-        return;
-    }
+        if (algoType == null || algoType.isBlank() || "NONE".equals(algoType)) {
+            return;
+        }
 
-    // IFD / IFDOCO：親注文が約定したら子注文をOPENにする
-    List<TradeOrder> waitingChildren =
-            tradeOrderRepository.findByParentOrderIdAndStatus(filledOrder.getId(), "WAITING");
+        List<TradeOrder> waitingChildren =
+                tradeOrderRepository.findByParentOrderIdAndStatus(filledOrder.getId(), "WAITING");
 
-    for (TradeOrder child : waitingChildren) {
-        child.setStatus("OPEN");
-        tradeOrderRepository.save(child);
-    }
+        for (TradeOrder child : waitingChildren) {
+            child.setStatus("OPEN");
+            tradeOrderRepository.save(child);
+        }
 
-    // OCO / IFDOCO：片方が約定したら同じグループのOPEN注文を取消
-    if ("OCO".equals(algoType) || "IFDOCO".equals(algoType)) {
-        List<TradeOrder> sameGroupOpenOrders =
-                tradeOrderRepository.findByGroupIdAndStatus(filledOrder.getGroupId(), "OPEN");
+        if ("OCO".equals(algoType) || "IFDOCO".equals(algoType)) {
+            List<TradeOrder> sameGroupOpenOrders =
+                    tradeOrderRepository.findByGroupIdAndStatus(filledOrder.getGroupId(), "OPEN");
 
-        for (TradeOrder order : sameGroupOpenOrders) {
-            if (!order.getId().equals(filledOrder.getId())) {
-                order.setStatus("CANCELED");
-                order.setCanceledAt(LocalDateTime.now());
-                tradeOrderRepository.save(order);
+            for (TradeOrder order : sameGroupOpenOrders) {
+                if (!order.getId().equals(filledOrder.getId())) {
+                    order.setStatus("CANCELED");
+                    order.setCanceledAt(LocalDateTime.now());
+                    tradeOrderRepository.save(order);
+                }
             }
         }
     }
-}
-
-    private void validateAlgo(AlgoOrderRequest request) {
-    if (request.getStockCode() == null || request.getStockCode().isBlank()) {
-        throw new IllegalArgumentException("銘柄コードは必須です。");
-    }
-
-    if (request.getQuantity() == null || request.getQuantity() <= 0) {
-        throw new IllegalArgumentException("数量は1以上で入力してください。");
-    }
-
-    if (request.getCurrentPrice() == null || request.getCurrentPrice().compareTo(BigDecimal.ZERO) <= 0) {
-        throw new IllegalArgumentException("現在価格が不正です。");
-    }
-
-    String algoType = request.getAlgoType() == null ? "" : request.getAlgoType().trim().toUpperCase();
-
-    if (!algoType.equals("IFD") && !algoType.equals("OCO") && !algoType.equals("IFDOCO")) {
-        throw new IllegalArgumentException("アルゴ注文種別が不正です。");
-    }
-
-    if ("IFD".equals(algoType)) {
-        if (request.getEntryLimitPrice() == null || request.getEntryLimitPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("IFDの買い指値価格は必須です。");
-        }
-        if (request.getProfitLimitPrice() == null || request.getProfitLimitPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("IFDの利確指値価格は必須です。");
-        }
-    }
-
-    if ("OCO".equals(algoType)) {
-        if (request.getProfitLimitPrice() == null || request.getProfitLimitPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("OCOの利確指値価格は必須です。");
-        }
-        if (request.getStopPrice() == null || request.getStopPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("OCOの逆指値価格は必須です。");
-        }
-    }
-
-    if ("IFDOCO".equals(algoType)) {
-        if (request.getEntryLimitPrice() == null || request.getEntryLimitPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("IFDOCOの買い指値価格は必須です。");
-        }
-        if (request.getProfitLimitPrice() == null || request.getProfitLimitPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("IFDOCOの利確指値価格は必須です。");
-        }
-        if (request.getStopPrice() == null || request.getStopPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("IFDOCOの損切逆指値価格は必須です。");
-        }
-    }
-}
 
     private void executeTrade(Long userId, TradeOrder order, BigDecimal price) {
         if ("BUY".equals(order.getSide())) {
@@ -591,6 +543,11 @@ public class TradingService {
         trade.setPrice(price);
         trade.setTradedAt(LocalDateTime.now());
         tradeRepository.save(trade);
+
+        portfolioSnapshotService.saveSnapshot(
+                userId,
+                order.getStockCode() + " " + ("BUY".equals(order.getSide()) ? "買い" : "売り")
+        );
     }
 
     private void buy(Long userId, TradeOrder order, BigDecimal price) {
@@ -719,6 +676,56 @@ public class TradingService {
         if (orderType.equals("STOP")
                 && (request.getStopPrice() == null || request.getStopPrice().compareTo(BigDecimal.ZERO) <= 0)) {
             throw new IllegalArgumentException("逆指値価格は必須です。");
+        }
+    }
+
+    private void validateAlgo(AlgoOrderRequest request) {
+        if (request.getStockCode() == null || request.getStockCode().isBlank()) {
+            throw new IllegalArgumentException("銘柄コードは必須です。");
+        }
+
+        if (request.getQuantity() == null || request.getQuantity() <= 0) {
+            throw new IllegalArgumentException("数量は1以上で入力してください。");
+        }
+
+        if (request.getCurrentPrice() == null || request.getCurrentPrice().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("現在価格が不正です。");
+        }
+
+        String algoType = request.getAlgoType() == null ? "" : request.getAlgoType().trim().toUpperCase();
+
+        if (!algoType.equals("IFD") && !algoType.equals("OCO") && !algoType.equals("IFDOCO")) {
+            throw new IllegalArgumentException("アルゴ注文種別が不正です。");
+        }
+
+        if ("IFD".equals(algoType)) {
+            if (request.getEntryLimitPrice() == null || request.getEntryLimitPrice().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("IFDの買い指値価格は必須です。");
+            }
+            if (request.getProfitLimitPrice() == null || request.getProfitLimitPrice().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("IFDの利確指値価格は必須です。");
+            }
+        }
+
+        if ("OCO".equals(algoType)) {
+            if (request.getProfitLimitPrice() == null || request.getProfitLimitPrice().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("OCOの利確指値価格は必須です。");
+            }
+            if (request.getStopPrice() == null || request.getStopPrice().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("OCOの逆指値価格は必須です。");
+            }
+        }
+
+        if ("IFDOCO".equals(algoType)) {
+            if (request.getEntryLimitPrice() == null || request.getEntryLimitPrice().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("IFDOCOの買い指値価格は必須です。");
+            }
+            if (request.getProfitLimitPrice() == null || request.getProfitLimitPrice().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("IFDOCOの利確指値価格は必須です。");
+            }
+            if (request.getStopPrice() == null || request.getStopPrice().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("IFDOCOの損切逆指値価格は必須です。");
+            }
         }
     }
 
