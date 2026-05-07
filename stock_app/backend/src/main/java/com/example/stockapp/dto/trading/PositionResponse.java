@@ -14,4 +14,8 @@ public class PositionResponse {
     private String sector;
     private Integer quantity;
     private BigDecimal averagePrice;
+    private BigDecimal currentPrice;
+    private BigDecimal valuationAmount;
+    private BigDecimal profitLoss;
+    private BigDecimal profitLossRate;
 }

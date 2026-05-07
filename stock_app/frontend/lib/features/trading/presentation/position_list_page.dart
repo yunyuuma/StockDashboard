@@ -62,6 +62,30 @@ class _PositionListPageState extends State<PositionListPage> {
   String _yen(double value) => '¥${value.toStringAsFixed(0)}';
 
   @override
+  Widget _miniInfo(String label, String value, {Color? valueColor}) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: const TextStyle(
+          color: Colors.black45,
+          fontSize: 11,
+        ),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        value,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 13,
+          color: valueColor ?? Colors.black87,
+        ),
+      ),
+    ],
+  );
+}
+
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
@@ -115,45 +139,84 @@ class _PositionListPageState extends State<PositionListPage> {
             itemBuilder: (_, index) {
               final p = _positions[index];
 
+              final isPlus = p.profitLoss >= 0;
+              final pnlColor = isPlus ? const Color(0xFFDC2626) : const Color(0xFF16A34A);
+
               return Card(
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18),
                 ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
-                  ),
-                  leading: CircleAvatar(
-                    backgroundColor: const Color(0xFFEFF6FF),
-                    child: Text(
-                      p.stockCode,
-                      style: const TextStyle(
-                        color: Color(0xFF2563EB),
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  title: Text(
-                    p.stockName.isNotEmpty ? p.stockName : p.stockCode,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    '${p.stockCode} / ${p.market} / ${p.sector}\n数量：${p.quantity}株',
-                  ),
-                  trailing: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        '平均取得単価',
-                        style: TextStyle(color: Colors.black45, fontSize: 11),
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: const Color(0xFFEFF6FF),
+                            child: Text(
+                              p.stockCode,
+                              style: const TextStyle(
+                                color: Color(0xFF2563EB),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  p.stockName.isNotEmpty ? p.stockName : p.stockCode,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${p.stockCode} / ${p.market} / ${p.sector}',
+                                  style: const TextStyle(
+                                    color: Colors.black54,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        _yen(p.averagePrice),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(child: _miniInfo('数量', '${p.quantity}株')),
+                          Expanded(child: _miniInfo('平均単価', _yen(p.averagePrice))),
+                          Expanded(child: _miniInfo('現在価格', _yen(p.currentPrice))),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(child: _miniInfo('評価額', _yen(p.valuationAmount))),
+                          Expanded(
+                            child: _miniInfo(
+                              '含み損益',
+                              '${isPlus ? '+' : ''}${_yen(p.profitLoss)}',
+                              valueColor: pnlColor,
+                            ),
+                          ),
+                          Expanded(
+                            child: _miniInfo(
+                              '損益率',
+                              '${isPlus ? '+' : ''}${p.profitLossRate.toStringAsFixed(2)}%',
+                              valueColor: pnlColor,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

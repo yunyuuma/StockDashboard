@@ -79,6 +79,7 @@ class TradingRepository {
     required String orderType,
     required int quantity,
     double? limitPrice,
+    double? stopPrice,
     required double currentPrice,
   }) async {
     final res = await _client.post(
@@ -90,6 +91,7 @@ class TradingRepository {
         'orderType': orderType,
         'quantity': quantity,
         'limitPrice': limitPrice,
+        'stopPrice': stopPrice,
         'currentPrice': currentPrice,
       }),
     );
@@ -116,6 +118,107 @@ class TradingRepository {
     }
 
     return OrderBook.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<List<TradingOrder>> fetchOrders() async {
+    final res = await _client.get(
+      Uri.parse('$baseUrl/api/trading/orders'),
+      headers: _headers,
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception('注文一覧取得失敗: status=${res.statusCode}, body=${res.body}');
+    }
+
+    final decoded = jsonDecode(res.body);
+    if (decoded is! List) {
+      throw Exception('注文一覧レスポンス不正: $decoded');
+    }
+
+    return decoded
+        .map<TradingOrder>((e) => TradingOrder.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<TradingOrder>> fetchOpenOrders() async {
+    final res = await _client.get(
+      Uri.parse('$baseUrl/api/trading/orders/open'),
+      headers: _headers,
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception('未約定注文取得失敗: status=${res.statusCode}, body=${res.body}');
+    }
+
+    final decoded = jsonDecode(res.body);
+    if (decoded is! List) {
+      throw Exception('未約定注文レスポンス不正: $decoded');
+    }
+
+    return decoded
+        .map<TradingOrder>((e) => TradingOrder.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> cancelOrder(int orderId) async {
+    final res = await _client.delete(
+      Uri.parse('$baseUrl/api/trading/orders/$orderId'),
+      headers: _headers,
+    );
+
+    if (res.statusCode != 200 && res.statusCode != 204) {
+      throw Exception('注文取消失敗: status=${res.statusCode}, body=${res.body}');
+    }
+  }
+
+  Future<int> checkOpenOrders() async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/trading/orders/check'),
+      headers: _headers,
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception('未約定再判定失敗: status=${res.statusCode}, body=${res.body}');
+    }
+
+    final map = jsonDecode(res.body) as Map<String, dynamic>;
+    return _toInt(map['filledCount']);
+  }
+
+  Future<OrderResult> placeAlgoOrder({
+    required String stockCode,
+    required String algoType,
+    required int quantity,
+    required double currentPrice,
+    double? entryLimitPrice,
+    double? profitLimitPrice,
+    double? stopPrice,
+  }) async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/trading/algo-orders'),
+      headers: _headers,
+      body: jsonEncode({
+        'stockCode': stockCode,
+        'algoType': algoType,
+        'quantity': quantity,
+        'currentPrice': currentPrice,
+        'entryLimitPrice': entryLimitPrice,
+        'profitLimitPrice': profitLimitPrice,
+        'stopPrice': stopPrice,
+      }),
+    );
+
+    if (res.statusCode != 200 && res.statusCode != 201) {
+      throw Exception('アルゴ注文失敗: status=${res.statusCode}, body=${res.body}');
+    }
+
+    return OrderResult.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  int _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString()) ?? 0;
   }
 
   void dispose() {

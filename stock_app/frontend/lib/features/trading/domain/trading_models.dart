@@ -17,6 +17,72 @@ class TradingSummary {
     );
   }
 }
+class TradingOrder {
+  final int orderId;
+  final String stockCode;
+  final String stockName;
+  final String market;
+  final String sector;
+  final String side;
+  final String orderType;
+  final String algoType;
+  final String groupId;
+  final int quantity;
+  final int? parentOrderId;
+  final double? limitPrice;
+  final double? stopPrice;
+  final double currentPrice;
+  final String status;
+  final String orderedAt;
+  final String? filledAt;
+  final String? canceledAt;
+
+  const TradingOrder({
+    required this.orderId,
+    required this.stockCode,
+    required this.stockName,
+    required this.market,
+    required this.sector,
+    required this.side,
+    required this.orderType,
+    required this.algoType,
+    required this.groupId,
+    required this.parentOrderId,
+    required this.quantity,
+    required this.limitPrice,
+    required this.stopPrice,
+    required this.currentPrice,
+    required this.status,
+    required this.orderedAt,
+    required this.filledAt,
+    required this.canceledAt,
+  });
+
+  factory TradingOrder.fromJson(Map<String, dynamic> json) {
+    return TradingOrder(
+      orderId: _toInt(json['orderId']),
+      stockCode: (json['stockCode'] ?? '').toString(),
+      stockName: (json['stockName'] ?? '').toString(),
+      market: (json['market'] ?? '').toString(),
+      sector: (json['sector'] ?? '').toString(),
+      side: (json['side'] ?? '').toString(),
+      orderType: (json['orderType'] ?? '').toString(),
+      quantity: _toInt(json['quantity']),
+      limitPrice: json['limitPrice'] == null ? null : _toDouble(json['limitPrice']),
+      stopPrice: json['stopPrice'] == null ? null : _toDouble(json['stopPrice']),
+      currentPrice: _toDouble(json['currentPrice']),
+      status: (json['status'] ?? '').toString(),
+      orderedAt: (json['orderedAt'] ?? '').toString(),
+      filledAt: json['filledAt']?.toString(),
+      canceledAt: json['canceledAt']?.toString(),
+      algoType: (json['algoType'] ?? 'NONE').toString(),
+      groupId: (json['groupId'] ?? '').toString(),
+      parentOrderId: json['parentOrderId'] == null
+          ? null
+          : _toInt(json['parentOrderId']),
+    );
+  }
+}
 
 class TradingPosition {
   final String stockCode;
@@ -25,6 +91,10 @@ class TradingPosition {
   final String sector;
   final int quantity;
   final double averagePrice;
+  final double currentPrice;
+  final double valuationAmount;
+  final double profitLoss;
+  final double profitLossRate;
 
   const TradingPosition({
     required this.stockCode,
@@ -33,6 +103,10 @@ class TradingPosition {
     required this.sector,
     required this.quantity,
     required this.averagePrice,
+    required this.currentPrice,
+    required this.valuationAmount,
+    required this.profitLoss,
+    required this.profitLossRate,
   });
 
   factory TradingPosition.fromJson(Map<String, dynamic> json) {
@@ -43,6 +117,10 @@ class TradingPosition {
       sector: (json['sector'] ?? '').toString(),
       quantity: _toInt(json['quantity']),
       averagePrice: _toDouble(json['averagePrice']),
+      currentPrice: _toDouble(json['currentPrice']),
+      valuationAmount: _toDouble(json['valuationAmount']),
+      profitLoss: _toDouble(json['profitLoss']),
+      profitLossRate: _toDouble(json['profitLossRate']),
     );
   }
 }

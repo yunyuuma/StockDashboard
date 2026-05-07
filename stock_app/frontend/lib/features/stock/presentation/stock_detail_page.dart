@@ -18,10 +18,7 @@ import '../../trading/domain/trading_models.dart';
 import '../../trading/presentation/order_dialog.dart';
 
 class StockDetailPage extends StatefulWidget {
-  const StockDetailPage({
-    super.key,
-    required this.code,
-  });
+  const StockDetailPage({super.key, required this.code});
 
   final String code;
 
@@ -30,10 +27,7 @@ class StockDetailPage extends StatefulWidget {
 }
 
 class _ChartLegendDot extends StatelessWidget {
-  const _ChartLegendDot({
-    required this.color,
-    required this.text,
-  });
+  const _ChartLegendDot({required this.color, required this.text});
 
   final Color color;
   final String text;
@@ -46,18 +40,12 @@ class _ChartLegendDot extends StatelessWidget {
         Container(
           width: 10,
           height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
         Text(
           text,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
       ],
     );
@@ -77,6 +65,8 @@ class _StockDetailPageState extends State<StockDetailPage>
 
   OrderBook? _orderBook;
   bool _orderBookLoading = false;
+  List<TradingOrder> _openOrders = [];
+  bool _openOrdersLoading = false;
 
   late final TabController _tabController;
   final ScrollController _newsScrollController = ScrollController();
@@ -98,28 +88,23 @@ class _StockDetailPageState extends State<StockDetailPage>
   String _selectedRange = '6M';
   String _chartType = 'candle';
   Widget _legendDot(Color color, String text) {
-  return Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Container(
-        width: 10,
-        height: 10,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-      ),
-      const SizedBox(width: 6),
-      Text(
-        text,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
+
   String _buildGoogleMapsUrl(String query) {
     final encoded = Uri.encodeComponent(query);
     return 'https://www.google.com/maps/search/?api=1&query=$encoded';
@@ -172,15 +157,17 @@ class _StockDetailPageState extends State<StockDetailPage>
 
       if (!mounted) return;
 
-      final sortedNews = [...news]..sort((a, b) {
-        final ad = _parseNewsDate(a.publishedAt);
-        final bd = _parseNewsDate(b.publishedAt);
-        return bd.compareTo(ad);
-      });
+      final sortedNews = [...news]
+        ..sort((a, b) {
+          final ad = _parseNewsDate(a.publishedAt);
+          final bd = _parseNewsDate(b.publishedAt);
+          return bd.compareTo(ad);
+        });
 
       setState(() {
         _summary = summary;
         _loadOrderBook(summary);
+        _loadOpenOrders();
         _chart = chart;
         _metrics = metrics;
         _company = company;
@@ -206,140 +193,140 @@ class _StockDetailPageState extends State<StockDetailPage>
   }
 
   int _bottomTitleStep(int length) {
-  if (length <= 12) return 1;
-  if (length <= 24) return 2;
-  if (length <= 48) return 4;
-  if (length <= 90) return 8;
-  if (length <= 140) return 12;
-  return 16;
-}
-
-String _safeDateLabel(String raw) {
-  if (raw.length >= 10) {
-    return raw.substring(0, 10).replaceAll('-', '/');
+    if (length <= 12) return 1;
+    if (length <= 24) return 2;
+    if (length <= 48) return 4;
+    if (length <= 90) return 8;
+    if (length <= 140) return 12;
+    return 16;
   }
-  return raw;
-}
 
-String _formatCompactVolumeLabel(double value) {
-  if (value >= 100000000) {
-    return '${(value / 100000000).toStringAsFixed(1)}億';
+  String _safeDateLabel(String raw) {
+    if (raw.length >= 10) {
+      return raw.substring(0, 10).replaceAll('-', '/');
+    }
+    return raw;
   }
-  if (value >= 10000) {
-    return '${(value / 10000).toStringAsFixed(0)}万';
+
+  String _formatCompactVolumeLabel(double value) {
+    if (value >= 100000000) {
+      return '${(value / 100000000).toStringAsFixed(1)}億';
+    }
+    if (value >= 10000) {
+      return '${(value / 10000).toStringAsFixed(0)}万';
+    }
+    return value.toStringAsFixed(0);
   }
-  return value.toStringAsFixed(0);
-}
 
-String _documentTypeJa(String value) {
-  switch (value.trim()) {
-    case 'FYFinancialStatements_Consolidated_JP':
-      return '決算短信（連結・日本基準）';
-    case 'FYFinancialStatements_Consolidated_US':
-      return '決算短信（連結・米国基準）';
-    case 'FYFinancialStatements_NonConsolidated_JP':
-      return '決算短信（非連結・日本基準）';
+  String _documentTypeJa(String value) {
+    switch (value.trim()) {
+      case 'FYFinancialStatements_Consolidated_JP':
+        return '決算短信（連結・日本基準）';
+      case 'FYFinancialStatements_Consolidated_US':
+        return '決算短信（連結・米国基準）';
+      case 'FYFinancialStatements_NonConsolidated_JP':
+        return '決算短信（非連結・日本基準）';
 
-    case '1QFinancialStatements_Consolidated_JP':
-      return '第1四半期決算短信（連結・日本基準）';
-    case '1QFinancialStatements_Consolidated_US':
-      return '第1四半期決算短信（連結・米国基準）';
-    case '1QFinancialStatements_NonConsolidated_JP':
-      return '第1四半期決算短信（非連結・日本基準）';
+      case '1QFinancialStatements_Consolidated_JP':
+        return '第1四半期決算短信（連結・日本基準）';
+      case '1QFinancialStatements_Consolidated_US':
+        return '第1四半期決算短信（連結・米国基準）';
+      case '1QFinancialStatements_NonConsolidated_JP':
+        return '第1四半期決算短信（非連結・日本基準）';
 
-    case '2QFinancialStatements_Consolidated_JP':
-      return '第2四半期決算短信（連結・日本基準）';
-    case '2QFinancialStatements_Consolidated_US':
-      return '第2四半期決算短信（連結・米国基準）';
-    case '2QFinancialStatements_NonConsolidated_JP':
-      return '第2四半期決算短信（非連結・日本基準）';
+      case '2QFinancialStatements_Consolidated_JP':
+        return '第2四半期決算短信（連結・日本基準）';
+      case '2QFinancialStatements_Consolidated_US':
+        return '第2四半期決算短信（連結・米国基準）';
+      case '2QFinancialStatements_NonConsolidated_JP':
+        return '第2四半期決算短信（非連結・日本基準）';
 
-    case '3QFinancialStatements_Consolidated_JP':
-      return '第3四半期決算短信（連結・日本基準）';
-    case '3QFinancialStatements_Consolidated_US':
-      return '第3四半期決算短信（連結・米国基準）';
-    case '3QFinancialStatements_NonConsolidated_JP':
-      return '第3四半期決算短信（非連結・日本基準）';
+      case '3QFinancialStatements_Consolidated_JP':
+        return '第3四半期決算短信（連結・日本基準）';
+      case '3QFinancialStatements_Consolidated_US':
+        return '第3四半期決算短信（連結・米国基準）';
+      case '3QFinancialStatements_NonConsolidated_JP':
+        return '第3四半期決算短信（非連結・日本基準）';
 
-    case 'OtherPeriodFinancialStatements_Consolidated_JP':
-      return 'その他四半期決算短信（連結・日本基準）';
-    case 'OtherPeriodFinancialStatements_Consolidated_US':
-      return 'その他四半期決算短信（連結・米国基準）';
-    case 'OtherPeriodFinancialStatements_NonConsolidated_JP':
-      return 'その他四半期決算短信（非連結・日本基準）';
+      case 'OtherPeriodFinancialStatements_Consolidated_JP':
+        return 'その他四半期決算短信（連結・日本基準）';
+      case 'OtherPeriodFinancialStatements_Consolidated_US':
+        return 'その他四半期決算短信（連結・米国基準）';
+      case 'OtherPeriodFinancialStatements_NonConsolidated_JP':
+        return 'その他四半期決算短信（非連結・日本基準）';
 
-    case 'FYFinancialStatements_Consolidated_JMIS':
-      return '決算短信（連結・JMIS）';
-    case '1QFinancialStatements_Consolidated_JMIS':
-      return '第1四半期決算短信（連結・JMIS）';
-    case '2QFinancialStatements_Consolidated_JMIS':
-      return '第2四半期決算短信（連結・JMIS）';
-    case '3QFinancialStatements_Consolidated_JMIS':
-      return '第3四半期決算短信（連結・JMIS）';
-    case 'OtherPeriodFinancialStatements_Consolidated_JMIS':
-      return 'その他四半期決算短信（連結・JMIS）';
+      case 'FYFinancialStatements_Consolidated_JMIS':
+        return '決算短信（連結・JMIS）';
+      case '1QFinancialStatements_Consolidated_JMIS':
+        return '第1四半期決算短信（連結・JMIS）';
+      case '2QFinancialStatements_Consolidated_JMIS':
+        return '第2四半期決算短信（連結・JMIS）';
+      case '3QFinancialStatements_Consolidated_JMIS':
+        return '第3四半期決算短信（連結・JMIS）';
+      case 'OtherPeriodFinancialStatements_Consolidated_JMIS':
+        return 'その他四半期決算短信（連結・JMIS）';
 
-    case 'FYFinancialStatements_NonConsolidated_IFRS':
-      return '決算短信（非連結・IFRS）';
-    case '1QFinancialStatements_NonConsolidated_IFRS':
-      return '第1四半期決算短信（非連結・IFRS）';
-    case '2QFinancialStatements_NonConsolidated_IFRS':
-      return '第2四半期決算短信（非連結・IFRS）';
-    case '3QFinancialStatements_NonConsolidated_IFRS':
-      return '第3四半期決算短信（非連結・IFRS）';
-    case 'OtherPeriodFinancialStatements_NonConsolidated_IFRS':
-      return 'その他四半期決算短信（非連結・IFRS）';
+      case 'FYFinancialStatements_NonConsolidated_IFRS':
+        return '決算短信（非連結・IFRS）';
+      case '1QFinancialStatements_NonConsolidated_IFRS':
+        return '第1四半期決算短信（非連結・IFRS）';
+      case '2QFinancialStatements_NonConsolidated_IFRS':
+        return '第2四半期決算短信（非連結・IFRS）';
+      case '3QFinancialStatements_NonConsolidated_IFRS':
+        return '第3四半期決算短信（非連結・IFRS）';
+      case 'OtherPeriodFinancialStatements_NonConsolidated_IFRS':
+        return 'その他四半期決算短信（非連結・IFRS）';
 
-    case 'FYFinancialStatements_Consolidated_IFRS':
-      return '決算短信（連結・IFRS）';
-    case '1QFinancialStatements_Consolidated_IFRS':
-      return '第1四半期決算短信（連結・IFRS）';
-    case '2QFinancialStatements_Consolidated_IFRS':
-      return '第2四半期決算短信（連結・IFRS）';
-    case '3QFinancialStatements_Consolidated_IFRS':
-      return '第3四半期決算短信（連結・IFRS）';
-    case 'OtherPeriodFinancialStatements_Consolidated_IFRS':
-      return 'その他四半期決算短信（連結・IFRS）';
+      case 'FYFinancialStatements_Consolidated_IFRS':
+        return '決算短信（連結・IFRS）';
+      case '1QFinancialStatements_Consolidated_IFRS':
+        return '第1四半期決算短信（連結・IFRS）';
+      case '2QFinancialStatements_Consolidated_IFRS':
+        return '第2四半期決算短信（連結・IFRS）';
+      case '3QFinancialStatements_Consolidated_IFRS':
+        return '第3四半期決算短信（連結・IFRS）';
+      case 'OtherPeriodFinancialStatements_Consolidated_IFRS':
+        return 'その他四半期決算短信（連結・IFRS）';
 
-    case 'FYFinancialStatements_NonConsolidated_Foreign':
-      return '決算短信（非連結・外国株）';
-    case '1QFinancialStatements_NonConsolidated_Foreign':
-      return '第1四半期決算短信（非連結・外国株）';
-    case '2QFinancialStatements_NonConsolidated_Foreign':
-      return '第2四半期決算短信（非連結・外国株）';
-    case '3QFinancialStatements_NonConsolidated_Foreign':
-      return '第3四半期決算短信（非連結・外国株）';
-    case 'OtherPeriodFinancialStatements_NonConsolidated_Foreign':
-      return 'その他四半期決算短信（非連結・外国株）';
+      case 'FYFinancialStatements_NonConsolidated_Foreign':
+        return '決算短信（非連結・外国株）';
+      case '1QFinancialStatements_NonConsolidated_Foreign':
+        return '第1四半期決算短信（非連結・外国株）';
+      case '2QFinancialStatements_NonConsolidated_Foreign':
+        return '第2四半期決算短信（非連結・外国株）';
+      case '3QFinancialStatements_NonConsolidated_Foreign':
+        return '第3四半期決算短信（非連結・外国株）';
+      case 'OtherPeriodFinancialStatements_NonConsolidated_Foreign':
+        return 'その他四半期決算短信（非連結・外国株）';
 
-    case 'FYFinancialStatements_Consolidated_Foreign':
-      return '決算短信（連結・外国株）';
-    case '1QFinancialStatements_Consolidated_Foreign':
-      return '第1四半期決算短信（連結・外国株）';
-    case '2QFinancialStatements_Consolidated_Foreign':
-      return '第2四半期決算短信（連結・外国株）';
-    case '3QFinancialStatements_Consolidated_Foreign':
-      return '第3四半期決算短信（連結・外国株）';
-    case 'OtherPeriodFinancialStatements_Consolidated_Foreign':
-      return 'その他四半期決算短信（連結・外国株）';
+      case 'FYFinancialStatements_Consolidated_Foreign':
+        return '決算短信（連結・外国株）';
+      case '1QFinancialStatements_Consolidated_Foreign':
+        return '第1四半期決算短信（連結・外国株）';
+      case '2QFinancialStatements_Consolidated_Foreign':
+        return '第2四半期決算短信（連結・外国株）';
+      case '3QFinancialStatements_Consolidated_Foreign':
+        return '第3四半期決算短信（連結・外国株）';
+      case 'OtherPeriodFinancialStatements_Consolidated_Foreign':
+        return 'その他四半期決算短信（連結・外国株）';
 
-    case 'FYFinancialStatements_Consolidated_REIT':
-      return '決算短信（REIT）';
+      case 'FYFinancialStatements_Consolidated_REIT':
+        return '決算短信（REIT）';
 
-    case 'DividendForecastRevision':
-      return '配当予想の修正';
-    case 'EarnForecastRevision':
-      return '業績予想の修正';
-    case 'REITDividendForecastRevision':
-      return '分配予想の修正';
-    case 'REITEarnForecastRevision':
-      return '利益予想の修正';
+      case 'DividendForecastRevision':
+        return '配当予想の修正';
+      case 'EarnForecastRevision':
+        return '業績予想の修正';
+      case 'REITDividendForecastRevision':
+        return '分配予想の修正';
+      case 'REITEarnForecastRevision':
+        return '利益予想の修正';
 
-    default:
-      if (value.trim().isEmpty) return '-';
-      return value;
+      default:
+        if (value.trim().isEmpty) return '-';
+        return value;
+    }
   }
-} 
 
   Future<Set<String>> _loadReadNewsKeys() async {
     final prefs = await SharedPreferences.getInstance();
@@ -446,9 +433,9 @@ String _documentTypeJa(String value) {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('お気に入り更新に失敗しました: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('お気に入り更新に失敗しました: $e')));
     } finally {
       if (mounted) {
         setState(() {
@@ -465,9 +452,9 @@ String _documentTypeJa(String value) {
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
 
     if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('URLを開けませんでした')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('URLを開けませんでした')));
     }
   }
 
@@ -499,6 +486,59 @@ String _documentTypeJa(String value) {
     }
   }
 
+Future<void> _loadOpenOrders() async {
+  if (!mounted) return;
+
+  setState(() {
+    _openOrdersLoading = true;
+  });
+
+  try {
+    final orders = await tradingRepository.fetchOpenOrders();
+
+    if (!mounted) return;
+
+    setState(() {
+      _openOrders = orders;
+    });
+  } catch (_) {
+    if (!mounted) return;
+
+    setState(() {
+      _openOrders = [];
+    });
+  } finally {
+    if (mounted) {
+      setState(() {
+        _openOrdersLoading = false;
+      });
+    }
+  }
+}
+
+  Future<void> _openOrderFromBoard(double boardPrice) async {
+    final s = _summary;
+    if (s == null || s.price <= 0) return;
+
+    final result = await showOrderDialog(
+      context: context,
+      stockCode: s.code,
+      stockName: s.name,
+      currentPrice: s.price,
+      initialSide: boardPrice >= s.price ? 'SELL' : 'BUY',
+      initialOrderType: 'LIMIT',
+      initialLimitPrice: boardPrice,
+    );
+
+    if (!mounted || result == null) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(result.message)));
+
+    await _loadOpenOrders();
+  }
+
   Future<void> _reloadAll() async {
     try {
       final summary = await repository.fetchSummary(widget.code);
@@ -509,11 +549,12 @@ String _documentTypeJa(String value) {
 
       if (!mounted) return;
 
-      final sortedNews = [...news]..sort((a, b) {
-        final ad = _parseNewsDate(a.publishedAt);
-        final bd = _parseNewsDate(b.publishedAt);
-        return bd.compareTo(ad);
-      });
+      final sortedNews = [...news]
+        ..sort((a, b) {
+          final ad = _parseNewsDate(a.publishedAt);
+          final bd = _parseNewsDate(b.publishedAt);
+          return bd.compareTo(ad);
+        });
 
       setState(() {
         _summary = summary;
@@ -527,9 +568,9 @@ String _documentTypeJa(String value) {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('再読み込みに失敗しました: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('再読み込みに失敗しました: $e')));
     }
   }
 
@@ -601,90 +642,91 @@ String _documentTypeJa(String value) {
 
     return result;
   }
-    String _dashIfZero(num? value) {
-      if (value == null || value == 0) return '-';
-      return value.toString();
+
+  String _dashIfZero(num? value) {
+    if (value == null || value == 0) return '-';
+    return value.toString();
+  }
+
+  String _formatJapaneseMoney(num? value) {
+    if (value == null || value == 0) return '-';
+
+    final v = value.toDouble().abs();
+    final sign = value < 0 ? '-' : '';
+
+    if (v >= 1000000000000) {
+      final t = v / 1000000000000;
+      return '$sign${_trimTrailingZero(t)}兆円';
     }
 
-    String _formatJapaneseMoney(num? value) {
-      if (value == null || value == 0) return '-';
-
-      final v = value.toDouble().abs();
-      final sign = value < 0 ? '-' : '';
-
-      if (v >= 1000000000000) {
-        final t = v / 1000000000000;
-        return '$sign${_trimTrailingZero(t)}兆円';
-      }
-
-      if (v >= 100000000) {
-        final oku = v / 100000000;
-        return '$sign${_trimTrailingZero(oku)}億円';
-      }
-
-      if (v >= 10000) {
-        final man = v / 10000;
-        return '$sign${_trimTrailingZero(man)}万円';
-      }
-
-      return '$sign${_trimTrailingZero(v)}円';
+    if (v >= 100000000) {
+      final oku = v / 100000000;
+      return '$sign${_trimTrailingZero(oku)}億円';
     }
 
-    String _formatJapaneseShares(num? value) {
-      if (value == null || value == 0) return '-';
-
-      final v = value.toDouble().abs();
-      final sign = value < 0 ? '-' : '';
-
-      if (v >= 100000000) {
-        final oku = v / 100000000;
-        return '$sign${_trimTrailingZero(oku)}億株';
-      }
-
-      if (v >= 10000) {
-        final man = v / 10000;
-        return '$sign${_trimTrailingZero(man)}万株';
-      }
-
-      return '$sign${_trimTrailingZero(v)}株';
+    if (v >= 10000) {
+      final man = v / 10000;
+      return '$sign${_trimTrailingZero(man)}万円';
     }
 
-    String _formatYen(num? value) {
-      if (value == null || value == 0) return '-';
-      return '${_trimTrailingZero(value.toDouble())}円';
+    return '$sign${_trimTrailingZero(v)}円';
+  }
+
+  String _formatJapaneseShares(num? value) {
+    if (value == null || value == 0) return '-';
+
+    final v = value.toDouble().abs();
+    final sign = value < 0 ? '-' : '';
+
+    if (v >= 100000000) {
+      final oku = v / 100000000;
+      return '$sign${_trimTrailingZero(oku)}億株';
     }
 
-    String _formatPercent(num? value) {
-      if (value == null || value == 0) return '-';
-      return '${_trimTrailingZero(value.toDouble())}%';
+    if (v >= 10000) {
+      final man = v / 10000;
+      return '$sign${_trimTrailingZero(man)}万株';
     }
 
-    String _trimTrailingZero(double value) {
-      if (value % 1 == 0) {
-        return value.toStringAsFixed(0);
-      }
-      if (value >= 100) {
-        return value.toStringAsFixed(1);
-      }
-      if (value >= 10) {
-        return value.toStringAsFixed(2);
-      }
-      return value.toStringAsFixed(2);
-    }
+    return '$sign${_trimTrailingZero(v)}株';
+  }
 
-    String _shortDateLabel(String raw) {
-      if (raw.length >= 10) {
-        return raw.substring(5, 10);
-      }
-      return raw;
-    }
+  String _formatYen(num? value) {
+    if (value == null || value == 0) return '-';
+    return '${_trimTrailingZero(value.toDouble())}円';
+  }
 
-    String _priceAxisLabel(double value) {
-      if (value >= 1000) {
-        return '${(value / 1000).toStringAsFixed(1)}K';
-      }
+  String _formatPercent(num? value) {
+    if (value == null || value == 0) return '-';
+    return '${_trimTrailingZero(value.toDouble())}%';
+  }
+
+  String _trimTrailingZero(double value) {
+    if (value % 1 == 0) {
       return value.toStringAsFixed(0);
     }
+    if (value >= 100) {
+      return value.toStringAsFixed(1);
+    }
+    if (value >= 10) {
+      return value.toStringAsFixed(2);
+    }
+    return value.toStringAsFixed(2);
+  }
+
+  String _shortDateLabel(String raw) {
+    if (raw.length >= 10) {
+      return raw.substring(5, 10);
+    }
+    return raw;
+  }
+
+  String _priceAxisLabel(double value) {
+    if (value >= 1000) {
+      return '${(value / 1000).toStringAsFixed(1)}K';
+    }
+    return value.toStringAsFixed(0);
+  }
 
   Widget _buildHeader() {
     final s = _summary!;
@@ -741,10 +783,7 @@ String _documentTypeJa(String value) {
                     const SizedBox(height: 6),
                     Text(
                       '${s.market} / ${s.industry}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[700],
-                      ),
+                      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                     ),
                   ],
                 ),
@@ -776,7 +815,7 @@ String _documentTypeJa(String value) {
                       : '-',
                   valueColor: isPlus
                       ? const Color(0xFFDC2626)
-                      : const Color(0xFF16A34A)
+                      : const Color(0xFF16A34A),
                 ),
               ),
             ],
@@ -840,9 +879,7 @@ String _documentTypeJa(String value) {
     final m = _metrics;
 
     if (s == null || m == null) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     return RefreshIndicator(
@@ -851,7 +888,6 @@ String _documentTypeJa(String value) {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(12),
         children: [
-
           // 現在値カード
           Card(
             elevation: 2,
@@ -867,17 +903,14 @@ String _documentTypeJa(String value) {
 
                   Row(
                     children: [
+                      Expanded(child: _miniMetric('高値', _formatPrice(s.high))),
+                      Expanded(child: _miniMetric('安値', _formatPrice(s.low))),
+                      Expanded(child: _miniMetric('始値', _formatPrice(s.open))),
                       Expanded(
-                        child: _miniMetric('高値', _formatPrice(s.high)),
-                      ),
-                      Expanded(
-                        child: _miniMetric('安値', _formatPrice(s.low)),
-                      ),
-                      Expanded(
-                        child: _miniMetric('始値', _formatPrice(s.open)),
-                      ),
-                      Expanded(
-                        child: _miniMetric('出来高', _formatJapaneseShares(s.volume)),
+                        child: _miniMetric(
+                          '出来高',
+                          _formatJapaneseShares(s.volume),
+                        ),
                       ),
                     ],
                   ),
@@ -925,10 +958,19 @@ String _documentTypeJa(String value) {
             child: Column(
               children: [
                 _infoRow('売上高予想', _formatJapaneseMoney(m.forecastNetSales)),
-                _infoRow('営業利益予想', _formatJapaneseMoney(m.forecastOperatingProfit)),
-                _infoRow('経常利益予想', _formatJapaneseMoney(m.forecastOrdinaryProfit)),
+                _infoRow(
+                  '営業利益予想',
+                  _formatJapaneseMoney(m.forecastOperatingProfit),
+                ),
+                _infoRow(
+                  '経常利益予想',
+                  _formatJapaneseMoney(m.forecastOrdinaryProfit),
+                ),
                 _infoRow('純利益予想', _formatJapaneseMoney(m.forecastProfit)),
-                _infoRow('年間配当予想', _formatYen(m.annualDividendPerShareForecast)),
+                _infoRow(
+                  '年間配当予想',
+                  _formatYen(m.annualDividendPerShareForecast),
+                ),
               ],
             ),
           ),
@@ -939,410 +981,448 @@ String _documentTypeJa(String value) {
     );
   }
 
-Widget _sectionCard({
-  required String title,
-  required Widget child,
-}) {
-  return Card(
-    elevation: 2,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _sectionCard({required String title, required Widget child}) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.black54, fontSize: 14),
             ),
           ),
-          const SizedBox(height: 12),
-          child,
+          Text(
+            value,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
         ],
       ),
-    ),
-  );
-}
+    );
+  }
 
-Widget _infoRow(String label, String value) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: Colors.black54,
-              fontSize: 14,
+  Widget _buildOrderBookCard() {
+    final board = _orderBook;
+    List<TradingOrder> _openOrders = [];
+    bool _openOrdersLoading = false;
+
+    return StockSectionCard(
+      title: 'フル板',
+      child: _orderBookLoading
+          ? const Center(child: CircularProgressIndicator())
+          : board == null
+          ? const Text('板情報を取得できませんでした。')
+          : Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '売数量',
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      SizedBox(
+                        width: 90,
+                        child: Text(
+                          '気配値',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '買数量',
+                          textAlign: TextAlign.left,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                // 売り板：高い価格を上、現在価格に近い価格を下
+                ...board.sellBoard.reversed.map(
+                  (row) => _orderBookRow(
+                    price: row.price,
+                    sellQuantity: row.quantity,
+                    buyQuantity: null,
+                    side: 'SELL',
+                    onTap: () => _openOrderFromBoard(row.price),
+                  ),
+                ),
+
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFF2563EB).withOpacity(0.25),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Divider(color: Color(0xFF93C5FD), thickness: 1),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Column(
+                          children: [
+                            const Text(
+                              '現在価格',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.black54,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              '¥${board.currentPrice.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                color: Color(0xFF2563EB),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Expanded(
+                        child: Divider(color: Color(0xFF93C5FD), thickness: 1),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 買い板：現在価格に近い価格を上、安い価格を下
+                ...board.buyBoard.map(
+                  (row) => _orderBookRow(
+                    price: row.price,
+                    sellQuantity: null,
+                    buyQuantity: row.quantity,
+                    side: 'BUY',
+                    onTap: () => _openOrderFromBoard(row.price),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    ),
-  );
-}
+    );
 
-Widget _buildOrderBookCard() {
-  final board = _orderBook;
+  }
 
+  Widget _buildOpenOrdersMiniCard() {
   return StockSectionCard(
-    title: 'フル板',
-    child: _orderBookLoading
+    title: '注文中',
+    child: _openOrdersLoading
         ? const Center(child: CircularProgressIndicator())
-        : board == null
-            ? const Text('板情報を取得できませんでした。')
+        : _openOrders.isEmpty
+            ? const Text('未約定注文はありません。')
             : Column(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '売数量',
-                            textAlign: TextAlign.right,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        SizedBox(
-                          width: 90,
-                          child: Text(
-                            '気配値',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            '買数量',
-                            textAlign: TextAlign.left,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // 売り板：高い価格を上、現在価格に近い価格を下
-                  ...board.sellBoard.reversed.map(
-                    (row) => _orderBookRow(
-                      price: row.price,
-                      sellQuantity: row.quantity,
-                      buyQuantity: null,
-                      side: 'SELL',
-                    ),
-                  ),
-
-                  Container(
-                    margin: const EdgeInsets.symmetric(vertical: 10),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 10,
-                      horizontal: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFF2563EB).withOpacity(0.25),
+                  ..._openOrders.take(3).map((o) {
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        o.stockName.isNotEmpty ? o.stockName : o.stockCode,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Expanded(
-                          child: Divider(
-                            color: Color(0xFF93C5FD),
-                            thickness: 1,
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Column(
-                            children: [
-                              const Text(
-                                '現在価格',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.black54,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                '¥${board.currentPrice.toStringAsFixed(0)}',
-                                style: const TextStyle(
-                                  color: Color(0xFF2563EB),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Expanded(
-                          child: Divider(
-                            color: Color(0xFF93C5FD),
-                            thickness: 1,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                      subtitle: Text(
+                        '${_orderSideLabel(o.side)} / ${_orderTypeLabel(o.orderType)} / ${o.quantity}株',
+                      ),
+                      trailing: TextButton(
+                        onPressed: () async {
+                          await tradingRepository.cancelOrder(o.orderId);
+                          await _loadOpenOrders();
 
-                  // 買い板：現在価格に近い価格を上、安い価格を下
-                  ...board.buyBoard.map(
-                    (row) => _orderBookRow(
-                      price: row.price,
-                      sellQuantity: null,
-                      buyQuantity: row.quantity,
-                      side: 'BUY',
+                          if (!mounted) return;
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('注文を取消しました。')),
+                          );
+                        },
+                        child: const Text('取消'),
+                      ),
+                    );
+                  }),
+                  if (_openOrders.length > 3)
+                    TextButton(
+                      onPressed: () {
+                        // context.go('/trading/orders');
+                      },
+                      child: Text('ほか${_openOrders.length - 3}件を表示'),
                     ),
-                  ),
                 ],
               ),
   );
 }
 
-Widget _orderBookRow({
-  required double price,
-  required int? sellQuantity,
-  required int? buyQuantity,
-  required String side,
-}) {
-  final isSell = side == 'SELL';
-  final color = isSell ? const Color(0xFFDC2626) : const Color(0xFF16A34A);
+  String _orderSideLabel(String side) {
+    return side == 'BUY' ? '買い' : '売り';
+  }
 
-  final quantity = sellQuantity ?? buyQuantity ?? 0;
-  final widthFactor = (quantity / 1000).clamp(0.08, 1.0);
+  String _orderTypeLabel(String type) {
+    switch (type) {
+      case 'MARKET':
+        return '成行';
+      case 'LIMIT':
+        return '指値';
+      case 'STOP':
+        return '逆指値';
+      default:
+        return type;
+    }
+  }
 
-  return Container(
-    height: 36,
-    margin: const EdgeInsets.symmetric(vertical: 2),
-    decoration: BoxDecoration(
-      color: Colors.white,
+  Widget _orderBookRow({
+    required double price,
+    required int? sellQuantity,
+    required int? buyQuantity,
+    required String side,
+    required VoidCallback onTap,
+  }) {
+    final isSell = side == 'SELL';
+    final color = isSell ? const Color(0xFFDC2626) : const Color(0xFF16A34A);
+
+    final quantity = sellQuantity ?? buyQuantity ?? 0;
+    final widthFactor = (quantity / 1000).clamp(0.08, 1.0);
+
+    return InkWell(
       borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: const Color(0xFFE5E7EB)),
-    ),
-    child: Row(
-      children: [
-        // 売数量
-        Expanded(
-          child: Stack(
-            alignment: Alignment.centerRight,
-            children: [
-              if (sellQuantity != null)
-                FractionallySizedBox(
-                  alignment: Alignment.centerRight,
-                  widthFactor: widthFactor,
-                  child: Container(
-                    height: double.infinity,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFDC2626).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        height: 36,
+        margin: const EdgeInsets.symmetric(vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Row(
+          children: [
+            // 売数量
+            Expanded(
+              child: Stack(
+                alignment: Alignment.centerRight,
+                children: [
+                  if (sellQuantity != null)
+                    FractionallySizedBox(
+                      alignment: Alignment.centerRight,
+                      widthFactor: widthFactor,
+                      child: Container(
+                        height: double.infinity,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDC2626).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: Text(
+                      sellQuantity == null ? '' : '${sellQuantity}株',
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
-                ),
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: Text(
-                  sellQuantity == null ? '' : '${sellQuantity}株',
-                  textAlign: TextAlign.right,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                ),
+                ],
               ),
-            ],
-          ),
-        ),
-
-        Container(
-          width: 1,
-          height: 22,
-          color: const Color(0xFFE5E7EB),
-        ),
-
-        // 価格
-        SizedBox(
-          width: 90,
-          child: Text(
-            '¥${price.toStringAsFixed(0)}',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
             ),
-          ),
-        ),
+            Container(width: 1, height: 22, color: const Color(0xFFE5E7EB)),
 
-        Container(
-          width: 1,
-          height: 22,
-          color: const Color(0xFFE5E7EB),
-        ),
-
-        // 買数量
-        Expanded(
-          child: Stack(
-            alignment: Alignment.centerLeft,
-            children: [
-              if (buyQuantity != null)
-                FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: widthFactor,
-                  child: Container(
-                    height: double.infinity,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF16A34A).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.only(left: 10),
-                child: Text(
-                  buyQuantity == null ? '' : '${buyQuantity}株',
-                  textAlign: TextAlign.left,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
+            // 価格
+            SizedBox(
+              width: 90,
+              child: Text(
+                '¥${price.toStringAsFixed(0)}',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
                 ),
               ),
-            ],
+            ),
+
+            Container(width: 1, height: 22, color: const Color(0xFFE5E7EB)),
+
+            // 買数量
+            Expanded(
+              child: Stack(
+                alignment: Alignment.centerLeft,
+                children: [
+                  if (buyQuantity != null)
+                    FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: widthFactor,
+                      child: Container(
+                        height: double.infinity,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF16A34A).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 10),
+                    child: Text(
+                      buyQuantity == null ? '' : '${buyQuantity}株',
+                      textAlign: TextAlign.left,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTradeButtons(StockDetailSummary s) {
+    final canTrade = s.price > 0;
+
+    return Row(
+      children: [
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: canTrade
+                ? () async {
+                    final result = await showOrderDialog(
+                      context: context,
+                      stockCode: s.code,
+                      stockName: s.name,
+                      currentPrice: s.price,
+                      initialSide: 'BUY',
+                    );
+
+                    if (!context.mounted || result == null) return;
+
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(result.message)));
+
+                    _loadOrderBook(s);
+                  }
+                : null,
+            icon: const Icon(Icons.add_shopping_cart),
+            label: const Text('買う'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: canTrade
+                ? () async {
+                    final result = await showOrderDialog(
+                      context: context,
+                      stockCode: s.code,
+                      stockName: s.name,
+                      currentPrice: s.price,
+                      initialSide: 'SELL',
+                    );
+
+                    if (!context.mounted || result == null) return;
+
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(result.message)));
+
+                    _loadOrderBook(s);
+                  }
+                : null,
+            icon: const Icon(Icons.sell_outlined),
+            label: const Text('売る'),
           ),
         ),
       ],
-    ),
-  );
-}
+    );
+  }
 
-Widget _buildTradeButtons(StockDetailSummary s) {
-  final canTrade = s.price > 0;
-
-  return Row(
-    children: [
-      Expanded(
-        child: FilledButton.icon(
-          onPressed: canTrade
-              ? () async {
-                  final result = await showOrderDialog(
-                    context: context,
-                    stockCode: s.code,
-                    stockName: s.name,
-                    currentPrice: s.price,
-                    initialSide: 'BUY',
-                  );
-
-                  if (!context.mounted || result == null) return;
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(result.message)),
-                  );
-
-                  _loadOrderBook(s);
-                }
-              : null,
-          icon: const Icon(Icons.add_shopping_cart),
-          label: const Text('買う'),
+  Widget _miniMetric(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: Colors.black54),
         ),
-      ),
-      const SizedBox(width: 12),
-      Expanded(
-        child: OutlinedButton.icon(
-          onPressed: canTrade
-              ? () async {
-                  final result = await showOrderDialog(
-                    context: context,
-                    stockCode: s.code,
-                    stockName: s.name,
-                    currentPrice: s.price,
-                    initialSide: 'SELL',
-                  );
-
-                  if (!context.mounted || result == null) return;
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(result.message)),
-                  );
-
-                  _loadOrderBook(s);
-                }
-              : null,
-          icon: const Icon(Icons.sell_outlined),
-          label: const Text('売る'),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
         ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
 
-Widget _miniMetric(String label, String value) {
-  return Column(
-    children: [
-      Text(
-        label,
-        style: const TextStyle(
-          fontSize: 12,
-          color: Colors.black54,
-        ),
-      ),
-      const SizedBox(height: 4),
-      Text(
-        value,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    ],
-  );
-}
+  String _dash(String? value) {
+    if (value == null || value.isEmpty) return '-';
+    return value;
+  }
 
-String _dash(String? value) {
-  if (value == null || value.isEmpty) return '-';
-  return value;
-}
-
-String _formatPrice(double value) {
-  if (value == 0) return '-';
-  return value.toStringAsFixed(0);
-}
+  String _formatPrice(double value) {
+    if (value == 0) return '-';
+    return value.toStringAsFixed(0);
+  }
 
   Widget _infoTile(String title, String value) {
     return Container(
@@ -1354,14 +1434,14 @@ String _formatPrice(double value) {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 11, color: Colors.black54),
+          ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -1434,8 +1514,8 @@ String _formatPrice(double value) {
             child: points.length < 2
                 ? const Center(child: Text('チャートデータがありません'))
                 : _chartType == 'candle'
-                    ? _buildCandleChart(points)
-                    : _buildLineChart(points),
+                ? _buildCandleChart(points)
+                : _buildLineChart(points),
           ),
         ),
 
@@ -1544,10 +1624,7 @@ String _formatPrice(double value) {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     _shortDateLabel(points[i].date),
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Colors.black54,
-                    ),
+                    style: const TextStyle(fontSize: 10, color: Colors.black54),
                   ),
                 );
               },
@@ -1560,10 +1637,7 @@ String _formatPrice(double value) {
               getTitlesWidget: (value, meta) {
                 return Text(
                   _formatCompactVolumeLabel(value),
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: Colors.black54,
-                  ),
+                  style: const TextStyle(fontSize: 10, color: Colors.black54),
                 );
               },
             ),
@@ -1614,9 +1688,7 @@ String _formatPrice(double value) {
               BarChartRodData(
                 toY: p.volume,
                 width: isSelected ? 8 : 6,
-                color: rise
-                    ? const Color(0xFFDC2626)
-                    : const Color(0xFF16A34A),
+                color: rise ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
                 borderRadius: BorderRadius.circular(2),
                 borderSide: isSelected
                     ? const BorderSide(color: Colors.black54, width: 1)
@@ -2094,15 +2166,11 @@ String _formatPrice(double value) {
 
   Widget _buildNewsTab() {
     if (_newsLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (_visibleNews.isEmpty) {
-      return const Center(
-        child: Text('ニュースはまだありません'),
-      );
+      return const Center(child: Text('ニュースはまだありません'));
     }
 
     return ListView.separated(
@@ -2139,9 +2207,7 @@ String _formatPrice(double value) {
             padding: const EdgeInsets.only(top: 6),
             child: Text(
               '${n.source}  ${n.publishedAt}',
-              style: TextStyle(
-                color: isRead ? Colors.black38 : Colors.black54,
-              ),
+              style: TextStyle(color: isRead ? Colors.black38 : Colors.black54),
             ),
           ),
           trailing: Icon(
@@ -2157,121 +2223,145 @@ String _formatPrice(double value) {
     );
   }
 
-Widget _buildCompanyTab() {
-  final c = _company;
-  final s = _summary!;
+  Widget _buildCompanyTab() {
+    final c = _company;
+    final s = _summary!;
 
-  final companyName =
-      c?.companyName.isNotEmpty == true ? c!.companyName : s.name;
-  final market =
-      c?.market.isNotEmpty == true ? c!.market : s.market;
-  final industry =
-      c?.industry.isNotEmpty == true ? c!.industry : s.industry;
+    final companyName = c?.companyName.isNotEmpty == true
+        ? c!.companyName
+        : s.name;
+    final market = c?.market.isNotEmpty == true ? c!.market : s.market;
+    final industry = c?.industry.isNotEmpty == true ? c!.industry : s.industry;
 
-  final mapQuery = c?.mapQuery.isNotEmpty == true
-      ? c!.mapQuery
-      : (companyName.isNotEmpty ? '$companyName 本社' : widget.code);
+    final mapQuery = c?.mapQuery.isNotEmpty == true
+        ? c!.mapQuery
+        : (companyName.isNotEmpty ? '$companyName 本社' : widget.code);
 
-  final trendsKeyword = c?.trendsKeyword.isNotEmpty == true
-      ? c!.trendsKeyword
-      : (companyName.isNotEmpty ? companyName : widget.code);
+    final trendsKeyword = c?.trendsKeyword.isNotEmpty == true
+        ? c!.trendsKeyword
+        : (companyName.isNotEmpty ? companyName : widget.code);
 
-  return ListView(
-    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-    children: [
-      StockSectionCard(
-        title: '企業情報',
-        child: Column(
-          children: [
-            _kv('企業名', companyName),
-            _kv('市場', market),
-            _kv('業種', industry),
-          ],
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      children: [
+        StockSectionCard(
+          title: '企業情報',
+          child: Column(
+            children: [
+              _kv('企業名', companyName),
+              _kv('市場', market),
+              _kv('業種', industry),
+            ],
+          ),
         ),
-      ),
-      const SizedBox(height: 12),
-      StockSectionCard(
-        title: '概要',
-        child: Text(
-          c?.description.isNotEmpty == true
-              ? c!.description
-              : '企業概要データはまだ登録されていません。',
-          style: const TextStyle(height: 1.6),
-        ),
-      ),
-      const SizedBox(height: 12),
-      StockSectionCard(
-        title: 'Webサイト',
-        child: InkWell(
-          onTap: c?.website.isNotEmpty == true
-              ? () => _openUrl(c!.website)
-              : null,
+        const SizedBox(height: 12),
+        StockSectionCard(
+          title: '概要',
           child: Text(
-            c?.website.isNotEmpty == true ? c!.website : '-',
-            style: TextStyle(
-              color: c?.website.isNotEmpty == true
-                  ? const Color(0xFF2563EB)
-                  : Colors.black54,
-              decoration: c?.website.isNotEmpty == true
-                  ? TextDecoration.underline
-                  : TextDecoration.none,
+            c?.description.isNotEmpty == true
+                ? c!.description
+                : '企業概要データはまだ登録されていません。',
+            style: const TextStyle(height: 1.6),
+          ),
+        ),
+        const SizedBox(height: 12),
+        StockSectionCard(
+          title: 'Webサイト',
+          child: InkWell(
+            onTap: c?.website.isNotEmpty == true
+                ? () => _openUrl(c!.website)
+                : null,
+            child: Text(
+              c?.website.isNotEmpty == true ? c!.website : '-',
+              style: TextStyle(
+                color: c?.website.isNotEmpty == true
+                    ? const Color(0xFF2563EB)
+                    : Colors.black54,
+                decoration: c?.website.isNotEmpty == true
+                    ? TextDecoration.underline
+                    : TextDecoration.none,
+              ),
             ),
           ),
         ),
-      ),
-      const SizedBox(height: 12),
-      StockSectionCard(
-        title: 'マップ / トレンド',
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            FilledButton.icon(
-              onPressed: () => _openUrl(_buildGoogleMapsUrl(mapQuery)),
-              icon: const Icon(Icons.map_outlined),
-              label: const Text('Googleマップで見る'),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () => _openUrl(_buildGoogleTrendsUrl(trendsKeyword)),
-              icon: const Icon(Icons.trending_up),
-              label: const Text('Google Trendsで見る'),
-            ),
-          ],
+        const SizedBox(height: 12),
+        StockSectionCard(
+          title: 'マップ / トレンド',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FilledButton.icon(
+                onPressed: () => _openUrl(_buildGoogleMapsUrl(mapQuery)),
+                icon: const Icon(Icons.map_outlined),
+                label: const Text('Googleマップで見る'),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () => _openUrl(_buildGoogleTrendsUrl(trendsKeyword)),
+                icon: const Icon(Icons.trending_up),
+                label: const Text('Google Trendsで見る'),
+              ),
+            ],
+          ),
         ),
-      ),
-    ],
-  );
-}
-
-Widget _buildTradingTab() {
-  final s = _summary;
-
-  if (s == null) {
-    return const Center(child: CircularProgressIndicator());
+      ],
+    );
   }
 
-  return ListView(
-    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-    children: [
-      StockSectionCard(
-        title: '売買',
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _metricHeaderBox(
-              '現在価格',
-              s.price > 0 ? '¥${s.price.toStringAsFixed(0)}' : '-',
-            ),
-            const SizedBox(height: 14),
-            _buildTradeButtons(s),
-          ],
+  Widget _buildTradingTab() {
+    final s = _summary;
+
+    if (s == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      children: [
+        StockSectionCard(
+          title: '売買',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _metricHeaderBox(
+                '現在価格',
+                s.price > 0 ? '¥${s.price.toStringAsFixed(0)}' : '-',
+              ),
+              const SizedBox(height: 14),
+              _buildTradeButtons(s),
+              const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: s.price > 0
+                      ? () async {
+                          final result = await showAlgoOrderDialog(
+                            context: context,
+                            stockCode: s.code,
+                            stockName: s.name,
+                            currentPrice: s.price,
+                          );
+
+                          if (!mounted || result == null) return;
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(result.message)),
+                          );
+
+                          await _loadOpenOrders();
+                        }
+                      : null,
+                  icon: const Icon(Icons.auto_graph),
+                  label: const Text('アルゴ注文'),
+                ),
+            ],
+          ),
         ),
-      ),
-      const SizedBox(height: 12),
-      _buildOrderBookCard(),
-    ],
-  );
-}
+        const SizedBox(height: 12),
+        _buildOrderBookCard(),
+        const SizedBox(height: 12),
+        _buildOpenOrdersMiniCard(),
+      ],
+    );
+  }
 
   @override
   void dispose() {
@@ -2346,4 +2436,3 @@ Widget _buildTradingTab() {
     );
   }
 }
-

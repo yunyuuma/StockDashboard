@@ -156,22 +156,35 @@ class _TradingHomePageState extends State<TradingHomePage> {
                 ),
               ),
               const SizedBox(height: 14),
-              Row(
+              Column(
                 children: [
-                  Expanded(
-                    child: _SmallSummaryCard(
-                      title: '保有銘柄',
-                      value: '${summary.positionCount}',
-                      icon: Icons.inventory_2_outlined,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SmallSummaryCard(
+                          title: '保有銘柄',
+                          value: '${summary.positionCount}',
+                          icon: Icons.inventory_2_outlined,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _SmallSummaryCard(
+                          title: '売買履歴',
+                          value: '${summary.tradeCount}',
+                          icon: Icons.history,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _SmallSummaryCard(
-                      title: '売買履歴',
-                      value: '${summary.tradeCount}',
-                      icon: Icons.history,
-                    ),
+
+                  const SizedBox(height: 14),
+
+                  _MenuCard(
+                    icon: Icons.receipt_long_outlined,
+                    title: '注文一覧',
+                    description: '未約定・約定済み・取消済みの注文を確認します。',
+                    onTap: () => context.go('/trading/orders'),
                   ),
                 ],
               ),
