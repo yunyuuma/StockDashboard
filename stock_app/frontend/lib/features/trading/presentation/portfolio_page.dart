@@ -335,29 +335,43 @@ class _PortfolioPageState extends State<PortfolioPage> {
                 ),
               ),
               lineTouchData: LineTouchData(
-                handleBuiltInTouches: true,
-                touchTooltipData: LineTouchTooltipData(
-                  getTooltipItems: (items) {
-                    return items.map((item) {
-                      final index = item.x.toInt();
-                      if (index < 0 || index >= points.length) {
-                        return null;
-                      }
+              handleBuiltInTouches: true,
+              touchTooltipData: LineTouchTooltipData(
+                getTooltipItems: (items) {
+                  if (items.isEmpty) {
+                    return [];
+                  }
 
-                      final p = points[index];
+                  final first = items.first;
+                  final index = first.x.toInt();
 
-                      return LineTooltipItem(
-                        '${p.eventLabel}\n総資産 ${_yen(p.totalAsset)}\n現金 ${_yen(p.cash)}\n株式 ${_yen(p.marketValue)}',
-                        const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      );
-                    }).toList();
-                  },
-                ),
+                  if (index < 0 || index >= points.length) {
+                    return items.map((_) => null).toList();
+                  }
+
+                  final p = points[index];
+
+                  final tooltip = LineTooltipItem(
+                    '${p.eventLabel}\n'
+                    '総資産 ${_yen(p.totalAsset)}\n'
+                    '現金 ${_yen(p.cash)}\n'
+                    '株式 ${_yen(p.marketValue)}',
+                    const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  );
+
+                  return items.asMap().entries.map((entry) {
+                    if (entry.key == 0) {
+                      return tooltip;
+                    }
+                    return null;
+                  }).toList();
+                },
               ),
+            ),
               lineBarsData: [
                 LineChartBarData(
                   spots: totalSpots,
