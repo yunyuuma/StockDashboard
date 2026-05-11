@@ -269,6 +269,13 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
               icon: const Icon(Icons.person),
               tooltip: 'マイページ',
             ),
+          IconButton(
+              onPressed: () {
+                context.go('/ai-advisor');
+              },
+              icon: const Icon(Icons.smart_toy_outlined),
+              tooltip: 'AI相談',
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: OutlinedButton.icon(
@@ -366,6 +373,7 @@ class _CompanyRegisterPageState extends State<CompanyRegisterPage> {
                       onFavoriteTap: () => _toggleFavorite(company),
                       favoriteTooltip:
                           company.favorite ? 'お気に入り解除' : 'お気に入り登録',
+                          onAiTap: () => context.go('/ai-advisor/stocks/${company.code}'),
                     );
                   },
                 );

@@ -20,6 +20,10 @@ import 'features/trading/presentation/position_list_page.dart';
 import 'features/trading/presentation/trade_history_page.dart';
 import 'features/trading/presentation/order_list_page.dart';
 import 'features/trading/presentation/portfolio_page.dart';
+import 'features/ai/presentation/ai_advisor_page.dart';
+import 'features/ai/presentation/ai_stock_advisor_page.dart';
+import 'features/ai/presentation/ai_trading_review_page.dart';
+import 'features/ai/presentation/ai_chat_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -125,6 +129,25 @@ class MyApp extends StatelessWidget {
       GoRoute(
         path: '/trading/portfolio',
         builder: (context, state) => const PortfolioPage(),
+      ),
+      GoRoute(
+        path: '/ai-advisor',
+        builder: (context, state) => const AiAdvisorPage(),
+      ),
+      GoRoute(
+        path: '/ai-advisor/stocks/:code',
+        builder: (context, state) {
+          final code = state.pathParameters['code'] ?? '';
+          return AiStockAdvisorPage(stockCode: code);
+        },
+      ),
+      GoRoute(
+        path: '/ai-advisor/trading-review',
+        builder: (context, state) => const AiTradingReviewPage(),
+      ),
+      GoRoute(
+        path: '/ai-advisor/chat',
+        builder: (context, state) => const AiChatPage(),
       ),
     ],
   );

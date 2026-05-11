@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../data/portfolio_repository.dart';
 import '../domain/portfolio_models.dart';
+import '../../ai/data/ai_advisor_repository.dart';
+import '../../ai/domain/ai_portfolio_models.dart';
 
 class PortfolioPage extends StatefulWidget {
   const PortfolioPage({super.key});
@@ -14,10 +16,11 @@ class PortfolioPage extends StatefulWidget {
 
 class _PortfolioPageState extends State<PortfolioPage> {
   final PortfolioRepository _repository = PortfolioRepository();
-
+  final AiAdvisorRepository _aiRepository = AiAdvisorRepository();
   bool _loading = true;
   String? _error;
   PortfolioSummary? _summary;
+  AiPortfolioAdvisor? _aiAdvisor;
 
   @override
   void initState() {
@@ -28,6 +31,7 @@ class _PortfolioPageState extends State<PortfolioPage> {
   @override
   void dispose() {
     _repository.dispose();
+    _aiRepository.dispose();
     super.dispose();
   }
 
@@ -39,11 +43,13 @@ class _PortfolioPageState extends State<PortfolioPage> {
 
     try {
       final summary = await _repository.fetchPortfolio();
+      final advisor = await _aiRepository.fetchPortfolioAdvisor();
 
       if (!mounted) return;
 
       setState(() {
         _summary = summary;
+        _aiAdvisor = advisor;
       });
     } catch (e) {
       if (!mounted) return;
@@ -65,7 +71,7 @@ class _PortfolioPageState extends State<PortfolioPage> {
   @override
   Widget build(BuildContext context) {
     final summary = _summary;
-
+    final aiAdvisor = _aiAdvisor;
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: AppBar(
@@ -226,6 +232,14 @@ class _PortfolioPageState extends State<PortfolioPage> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      const SizedBox(height: 16),
+
+                        if (aiAdvisor != null) ...[
+                            _AiPortfolioCard(
+                              advisor: aiAdvisor,
+                            ),
+                            const SizedBox(height: 16),
+                          ],
                       const SizedBox(height: 16),
                       SizedBox(
                         height: 280,
@@ -539,6 +553,86 @@ class _InfoCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _AiPortfolioCard extends StatelessWidget {
+  const _AiPortfolioCard({
+    required this.advisor,
+  });
+
+  final AiPortfolioAdvisor advisor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.smart_toy_outlined),
+                SizedBox(width: 8),
+                Text(
+                  'AIポートフォリオ診断',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+
+            Text(
+              advisor.summary,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            _section('強み', advisor.strengths),
+            _section('リスク', advisor.risks),
+            _section('改善提案', advisor.suggestions),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _section(String title, List<String> items) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          ...items.map(
+            (e) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text('• $e'),
+            ),
+          ),
+        ],
       ),
     );
   }

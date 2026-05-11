@@ -9,6 +9,7 @@ class StockListCard extends StatelessWidget {
     required this.onFavoriteTap,
     this.favoriteTooltip,
     this.showPriceInfo = false,
+    this.onAiTap,
   });
 
   final Company company;
@@ -16,6 +17,7 @@ class StockListCard extends StatelessWidget {
   final VoidCallback onFavoriteTap;
   final String? favoriteTooltip;
   final bool showPriceInfo;
+  final VoidCallback? onAiTap;
 
   Color _marketChipColor(String market) {
     switch (market) {
@@ -170,26 +172,40 @@ class StockListCard extends StatelessWidget {
                         ],
                       ),
                     ] else ...[
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Text(
-                            '銘柄詳細へ',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Text(
+                              '銘柄詳細へ',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.arrow_forward_ios_rounded,
-                            size: 14,
-                            color: Colors.grey[500],
-                          ),
-                        ],
-                      ),
-                    ],
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 14,
+                              color: Colors.grey[500],
+                            ),
+
+                            const Spacer(),
+
+                            TextButton.icon(
+                              onPressed: onAiTap,
+                              icon: const Icon(
+                                Icons.smart_toy_outlined,
+                                size: 18,
+                              ),
+                              label: const Text('AI相談'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFF2563EB),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                   ],
                 ),
               ),
