@@ -147,7 +147,10 @@ class MyApp extends StatelessWidget {
       ),
       GoRoute(
         path: '/ai-advisor/chat',
-        builder: (context, state) => const AiChatPage(),
+        builder: (context, state) {
+          final stockCode = state.uri.queryParameters['stockCode'];
+          return AiChatPage(stockCode: stockCode);
+        },
       ),
     ],
   );

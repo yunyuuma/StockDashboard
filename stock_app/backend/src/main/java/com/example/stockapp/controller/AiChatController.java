@@ -23,7 +23,8 @@ public class AiChatController {
     ) {
         return ollamaChatService.chat(
                 principal.getId(),
-                request.getMessage()
+                request.getMessage(),
+                request.getStockCode()
         );
     }
 }

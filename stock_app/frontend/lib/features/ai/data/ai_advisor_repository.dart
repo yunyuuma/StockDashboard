@@ -83,12 +83,16 @@ class AiAdvisorRepository {
     );
   }
 
-  Future<AiChatResponse> sendChatMessage(String message) async {
+  Future<AiChatResponse> sendChatMessage(
+    String message, {
+    String? stockCode,
+  }) async {
     final res = await _client.post(
       Uri.parse('$baseUrl/api/ai-advisor/chat'),
       headers: _headers,
       body: jsonEncode({
         'message': message,
+        'stockCode': stockCode,
       }),
     );
 

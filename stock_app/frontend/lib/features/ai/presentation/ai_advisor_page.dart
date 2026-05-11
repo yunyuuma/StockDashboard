@@ -96,7 +96,7 @@ class _AiAdvisorPageState extends State<AiAdvisorPage> {
         foregroundColor: Colors.black87,
         elevation: 0,
         leading: IconButton(
-          onPressed: () => context.go('/stocks'),
+          onPressed: () => context.go('/companies'),
           icon: const Icon(Icons.arrow_back),
         ),
         actions: [

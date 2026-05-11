@@ -7,4 +7,5 @@ import lombok.Setter;
 @Setter
 public class AiChatRequest {
     private String message;
+    private String StockCode;
 }
