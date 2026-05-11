@@ -1,322 +1,252 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'company_search_controller.dart';
+import '../data/favorite_api_repository.dart';
+import '../data/price_repository.dart';
+import '../domain/app_session.dart';
+import '../domain/company.dart';
+import 'components/stock_empty_view.dart';
+import 'components/stock_error_view.dart';
+import 'components/stock_list_card.dart';
+import 'components/stock_loading_view.dart';
+import 'components/stock_market_chip_row.dart';
+import 'components/stock_search_header.dart';
 
-class CompanySearchPage extends ConsumerStatefulWidget {
+class CompanySearchPage extends StatefulWidget {
   const CompanySearchPage({super.key});
 
   @override
-  ConsumerState<CompanySearchPage> createState() => _CompanySearchPageState();
+  State<CompanySearchPage> createState() => _CompanySearchPageState();
 }
 
-class _CompanySearchPageState extends ConsumerState<CompanySearchPage> {
+class _CompanySearchPageState extends State<CompanySearchPage> {
+  final FavoriteApiRepository favoriteApiRepository = FavoriteApiRepository();
 
-  bool _loaded = false;
-  RangeValues? _rangeValues;
+  static const String workerBaseUrl = 'https://workers.gikiin67.workers.dev';
+  final PriceRepository priceRepository =
+      PriceRepository(proxyBaseUrl: workerBaseUrl);
 
-  Icon _sortIcon(SortField field, CompanySearchController controller) {
+  final TextEditingController _searchController = TextEditingController();
 
-    if (controller.sortField != field) {
-      return const Icon(Icons.unfold_more, size: 16);
+  List<Company> _all = [];
+  List<Company> _filtered = [];
+
+  bool _loading = true;
+  bool _updatingFavorite = false;
+  String? _error;
+
+  String _query = '';
+  String? _marketFilter;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+
+    _searchController.addListener(() {
+      if (!mounted) return;
+      setState(() {
+        _query = _searchController.text.trim();
+        _applyFilter();
+      });
+    });
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final favorites = await favoriteApiRepository.fetchFavorites(
+        userId: AppSession.userId!,
+      );
+
+      final codes = favorites.map((e) => e.code).toList();
+
+      final quotes = codes.isEmpty
+          ? <String, dynamic>{}
+          : await priceRepository.refreshQuotes(
+              codes,
+              batchSize: 10,
+              delayBetweenBatches: const Duration(milliseconds: 200),
+            );
+
+      final merged = favorites.map((company) {
+        final quote = quotes[company.code];
+        return company.copyWith(
+          favorite: true,
+          price: quote?.price ?? 0,
+          changePct: quote?.changePct ?? 0,
+        );
+      }).toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        _all = merged;
+        _applyFilter();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
+  }
 
-    if (controller.sortDir == SortDir.asc) {
-      return const Icon(Icons.arrow_upward, size: 16);
+  void _applyFilter() {
+    final q = _query.toLowerCase();
+
+    _filtered = _all.where((c) {
+      final hit = q.isEmpty ||
+          c.code.toLowerCase().contains(q) ||
+          c.name.toLowerCase().contains(q) ||
+          c.industry.toLowerCase().contains(q) ||
+          c.market.toLowerCase().contains(q);
+
+      final marketOk = _marketFilter == null || c.market == _marketFilter;
+      return hit && marketOk;
+    }).toList();
+  }
+
+  void _setMarketFilter(String? market) {
+    setState(() {
+      _marketFilter = market;
+      _applyFilter();
+    });
+  }
+
+  Future<void> _toggleFavorite(Company company) async {
+    if (_updatingFavorite) return;
+
+    setState(() {
+      _updatingFavorite = true;
+    });
+
+    try {
+      await favoriteApiRepository.deleteFavorite(
+        userId: AppSession.userId!,
+        stockCode: company.code,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _all = _all.where((e) => e.code != company.code).toList();
+        _applyFilter();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${company.name} をお気に入りから削除しました')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('エラー: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _updatingFavorite = false;
+        });
+      }
     }
-
-    if (controller.sortDir == SortDir.desc) {
-      return const Icon(Icons.arrow_downward, size: 16);
-    }
-
-    return const Icon(Icons.unfold_more, size: 16);
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    if (!_loaded) {
-      _loaded = true;
-
-      Future.microtask(() async {
-
-        final controller = ref.read(companySearchControllerProvider);
-
-        await controller.refreshFavoriteQuotes();
-
-        if (!mounted) return;
-
-        setState(() {
-          _rangeValues = RangeValues(
-            controller.priceMin,
-            controller.priceMax,
-          );
-        });
-      });
-    }
+  void dispose() {
+    _searchController.dispose();
+    favoriteApiRepository.dispose();
+    priceRepository.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-
-    final controller = ref.watch(companySearchControllerProvider);
-
-    final minRange = controller.priceRangeMin;
-    final maxRange = controller.priceRangeMax;
-
-    _rangeValues ??= RangeValues(
-      controller.priceMin,
-      controller.priceMax,
-    );
+    final markets = _all
+        .map((e) => e.market)
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
 
     return Scaffold(
-
+      backgroundColor: const Color(0xFFF5F7FB),
       appBar: AppBar(
-        title: const Text("お気に入り株価一覧"),
-        centerTitle: false,
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        title: const Text(
+          'お気に入り一覧',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 22,
+          ),
+        ),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.only(right: 12),
             child: FilledButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text("銘柄追加"),
-              onPressed: () {
-                context.go('/');
-              },
+              onPressed: _load,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('再読込'),
             ),
-          )
+          ),
         ],
       ),
-
       body: Column(
         children: [
-
-          /// 検索
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              textAlign: TextAlign.center,
-              onChanged: controller.setQuery,
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search),
-                hintText: "銘柄検索",
-                filled: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
-            ),
+          StockSearchHeader(controller: _searchController),
+          StockMarketChipRow(
+            markets: markets,
+            selectedMarket: _marketFilter,
+            onSelected: _setMarketFilter,
           ),
+          Expanded(
+            child: Builder(
+              builder: (context) {
+                if (_loading) {
+                  return const StockLoadingView();
+                }
 
-          /// フィルター
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
+                if (_error != null) {
+                  return StockErrorView(
+                    title: 'お気に入りデータの取得に失敗しました',
+                    message: _error!,
+                    onRetry: _load,
+                  );
+                }
 
-                ChoiceChip(
-                  label: const Text("業種"),
-                  selected: controller.tab == FilterTab.industry,
-                  onSelected: (_) {
-                    controller.setTab(FilterTab.industry);
-                  },
-                ),
+                if (_filtered.isEmpty) {
+                  return const StockEmptyView(
+                    message: 'お気に入り銘柄がありません',
+                  );
+                }
 
-                const SizedBox(width: 12),
-
-                ChoiceChip(
-                  label: const Text("株価"),
-                  selected: controller.tab == FilterTab.price,
-                  onSelected: (_) {
-                    controller.setTab(FilterTab.price);
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          /// 並び替え
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Wrap(
-              spacing: 8,
-              alignment: WrapAlignment.center,
-              children: [
-
-                OutlinedButton.icon(
-                  onPressed: controller.toggleSortTicker,
-                  icon: _sortIcon(SortField.ticker, controller),
-                  label: const Text("コード"),
-                ),
-
-                OutlinedButton.icon(
-                  onPressed: controller.toggleSortPrice,
-                  icon: _sortIcon(SortField.price, controller),
-                  label: const Text("株価"),
-                ),
-
-                OutlinedButton.icon(
-                  onPressed: controller.toggleSortChange,
-                  icon: _sortIcon(SortField.change, controller),
-                  label: const Text("前日比"),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          /// 株価レンジ
-          if (controller.tab == FilterTab.price)
-            Column(
-              children: [
-
-                Text(
-                  "¥${_rangeValues!.start.toStringAsFixed(0)} ~ ¥${_rangeValues!.end.toStringAsFixed(0)}",
-                ),
-
-                RangeSlider(
-                  values: _rangeValues!,
-                  min: minRange,
-                  max: maxRange,
-                  onChanged: (values) {
-                    setState(() {
-                      _rangeValues = values;
-                    });
-                  },
-                  onChangeEnd: (values) {
-                    controller.setPriceSliderRange(
-                      values.start,
-                      values.end,
+                return ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _filtered.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final company = _filtered[index];
+                    return StockListCard(
+                      company: company,
+                      showPriceInfo: true,
+                      onTap: () => context.go('/stock/${company.code}'),
+                      onFavoriteTap: () => _toggleFavorite(company),
+                      favoriteTooltip: 'お気に入り解除',
                     );
                   },
-                ),
-              ],
-            ),
-
-          const SizedBox(height: 8),
-
-          /// 読み込み
-          if (controller.loading)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                "取得中... ${controller.done}/${controller.total}",
-              ),
-            ),
-
-          /// リスト
-          Expanded(
-            child: ListView.separated(
-
-              padding: const EdgeInsets.all(12),
-
-              itemCount: controller.result.length,
-
-              separatorBuilder: (_, __) =>
-                  const SizedBox(height: 8),
-
-              itemBuilder: (context, index) {
-
-                final company = controller.result[index];
-
-                final isPlus = company.changePct >= 0;
-
-                return Card(
-
-                  elevation: 3,
-
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-
-                  child: InkWell(
-
-                    borderRadius: BorderRadius.circular(16),
-
-                    onTap: () {
-                      context.go('/stock/${company.code}');
-                    },
-
-                    child: Padding(
-
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-
-                      child: Row(
-                        children: [
-
-                          /// コード
-                          CircleAvatar(
-                            radius: 20,
-                            child: Text(
-                              company.code,
-                              style: const TextStyle(fontSize: 10),
-                            ),
-                          ),
-
-                          const SizedBox(width: 12),
-
-                          /// 名前
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-
-                                Text(
-                                  company.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-
-                                Text(
-                                  company.industry,
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          /// 株価
-                          Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.end,
-                            children: [
-
-                              Text(
-                                "¥${company.price.toStringAsFixed(0)}",
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-
-                              Text(
-                                "${isPlus ? "+" : ""}${company.changePct.toStringAsFixed(2)}%",
-                                style: TextStyle(
-                                  color: isPlus
-                                      ? Colors.red
-                                      : Colors.blue,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
                 );
               },
             ),

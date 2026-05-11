@@ -32,6 +32,7 @@ class CompanyRepository {
           changePct: 0,
           marketCap: 0,
           volume: 0,
+          favorite: false, 
         ),
       );
     }

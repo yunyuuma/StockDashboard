@@ -4,12 +4,10 @@ class Company {
   final String kana;
   final String market;
   final String industry;
-
   final double price;
   final double changePct;
   final double marketCap;
   final double volume;
-
   final bool favorite;
 
   const Company({
@@ -22,7 +20,7 @@ class Company {
     required this.changePct,
     required this.marketCap,
     required this.volume,
-    this.favorite = false,
+    required this.favorite,
   });
 
   Company copyWith({
