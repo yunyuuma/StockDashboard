@@ -183,6 +183,10 @@ class _CompanySearchPageState extends State<CompanySearchPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: AppBar(
+        leading: IconButton(
+          onPressed: () => context.go('/companies'),
+          icon: const Icon(Icons.arrow_back),
+        ),
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,

@@ -142,6 +142,10 @@ class _AdminCompanyProfileListPageState
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: AppBar(
+        leading: IconButton(
+          onPressed: () => context.go('/admin'),
+          icon: const Icon(Icons.arrow_back),
+        ),
         title: const Text('企業情報管理'),
         actions: [
           IconButton(

@@ -281,9 +281,15 @@ class _MyPageState extends State<MyPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = (_profile?.role ?? AppSession.role ?? 1) == 2;
+    final backPath = isAdmin ? '/admin' : '/companies';
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: AppBar(
+        leading: IconButton(
+          onPressed: () => context.go(backPath),
+          icon: const Icon(Icons.arrow_back),
+        ),
         title: const Text('マイページ'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
@@ -481,6 +487,8 @@ class _MyPageState extends State<MyPage> {
 
   Widget _buildSettingCard(UserProfile? profile) {
     final twoFactor = profile?.twoFactorEnabled ?? false;
+    final role = profile?.role ?? AppSession.role ?? 1;
+    final isAdmin = role == 2;
 
     return Card(
       elevation: 0,
@@ -561,6 +569,7 @@ class _MyPageState extends State<MyPage> {
               value: _roleLabel(profile?.role ?? AppSession.role ?? 1),
             ),
 
+            if (!isAdmin) ...[
             const Divider(height: 28),
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -578,6 +587,25 @@ class _MyPageState extends State<MyPage> {
                 context.go('/trading');
               },
             ),
+          ] else ...[
+            const Divider(height: 28),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(
+                Icons.admin_panel_settings_outlined,
+                color: Color(0xFF2563EB),
+              ),
+              title: const Text(
+                '管理者ホーム',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: const Text('ユーザ管理・企業情報管理へ戻ります。'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                context.go('/admin');
+              },
+            ),
+          ],
 
           ],
         ),

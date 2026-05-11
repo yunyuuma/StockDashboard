@@ -70,8 +70,12 @@ class _TradingHomePageState extends State<TradingHomePage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: AppBar(
-        title: const Text(
-          '疑似売買',
+      leading: IconButton(
+        onPressed: () => context.go('/mypage'),
+        icon: const Icon(Icons.arrow_back),
+      ),
+      title: const Text(
+        '疑似売買',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,

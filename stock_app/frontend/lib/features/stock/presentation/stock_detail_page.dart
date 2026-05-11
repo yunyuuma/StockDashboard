@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 
 import '../data/favorite_api_repository.dart';
 import '../data/stock_detail_api_repository.dart';
@@ -2379,6 +2380,10 @@ Future<void> _loadOpenOrders() async {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: AppBar(
+        leading: IconButton(
+          onPressed: () => context.go('/companies'),
+          icon: const Icon(Icons.arrow_back),
+        ),
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
