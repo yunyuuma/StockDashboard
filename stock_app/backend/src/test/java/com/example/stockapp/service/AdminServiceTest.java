@@ -11,6 +11,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 class AdminServiceTest {
@@ -30,7 +31,7 @@ class AdminServiceTest {
     }
 
     @Test
-    void ユーザ削除できること() {
+    void ユーザ削除時にお気に入りも削除されること() {
         User user = new User();
         user.setId(1L);
 
@@ -41,5 +42,37 @@ class AdminServiceTest {
 
         verify(favoriteRepository, times(1)).deleteByUserId(1);
         verify(userRepository, times(1)).delete(user);
+    }
+
+    @Test
+    void 存在しないユーザ削除なら例外になること() {
+        when(userRepository.findById(99L))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> adminUserService.deleteUser(99L)
+        );
+    }
+
+    @Test
+    void 存在しないユーザ削除なら例外() {
+
+        when(userRepository.findById(99L))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> adminUserService.deleteUser(99L)
+        );
+    }
+
+    @Test
+    void 自分自身を削除できないこと() {
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> adminUserService.deleteUser(null)
+        );
     }
 }
