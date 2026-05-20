@@ -82,11 +82,11 @@ Spring Boot ベースで REST API を提供しています。
 
 AIには Ollama を利用しています。
 
-### 使用モデル
+## 使用モデル
 
 - qwen2.5:1.5b
 
-### AI機能一覧
+## AI機能一覧
 
 - 投資相談
 - 売買レビュー
@@ -177,7 +177,7 @@ AIには Ollama を利用しています。
 本システムでは主に以下の9テーブルを使用しています。
 
 | No | テーブル名 | 内容 |
-|---|---|---|
+| --- | --- | --- |
 | 1 | users | ユーザ情報、ログイン情報、権限管理 |
 | 2 | stocks / companies | 銘柄情報、企業情報 |
 | 3 | stock_price_histories | 株価履歴、チャート表示用データ |
@@ -233,6 +233,9 @@ StockDashboard/
       │  ├─ models/
       │  └─ widget_test.dart
       └─ pubspec.yaml
+```
+
+---
 
 # API一覧
 
@@ -388,7 +391,7 @@ cd stock_app/backend
 ./mvnw spring-boot:run
 ```
 
-Windows の場合
+Windows の場合:
 
 ```bash
 cd stock_app/backend
