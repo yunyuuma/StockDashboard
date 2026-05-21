@@ -1,0 +1,52 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/stock_app?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Tokyo
+    username: root
+    password: password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: gikiin67@gmail.com
+    password: qgbzmkdzkhgjbsfm
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
+app:
+  jwt:
+    secret: your-256-bit-secret-key-must-be-at-least-32-characters-long
+    expiration: 86400000
+    refresh-expiration: 604800000
+    issuer: your-app-name
+
+server:
+  port: 8080
+  error:
+    include-message: always
+    include-binding-errors: always
+
+logging:
+  level:
+    org.springframework.web: DEBUG
+    org.springframework.web.client.RestTemplate: DEBUG
+    com.example.stockapp: DEBUG
+
+jquants:
+  base-url: https://api.jquants.com/v2
+  api-key: romyjaC-GT5GY85mZ4uOaMBHyN0pxGgHBmi1JnEB7RM
+  cache-minutes: 60
