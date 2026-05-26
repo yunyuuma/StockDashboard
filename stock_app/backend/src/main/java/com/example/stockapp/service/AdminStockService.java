@@ -11,8 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -30,6 +28,11 @@ public class AdminStockService {
                 .stream()
                 .map(AdminStockResponse::from)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminStockResponse> getStocks() {
+        return findAll();
     }
     @Transactional
     public AdminStockResponse create(AdminStockRequest request) {
