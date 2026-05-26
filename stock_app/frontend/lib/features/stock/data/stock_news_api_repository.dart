@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'stock_news.dart';
+import '../../../core/api_config.dart';
 
 class StockNewsApiRepository {
   StockNewsApiRepository({
@@ -10,7 +11,7 @@ class StockNewsApiRepository {
 
   final http.Client _client;
 
-  static const String baseUrl = 'http://localhost:8080';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   Future<List<StockNews>> fetchNews(String code) async {
     final uri = Uri.parse('$baseUrl/api/stocks/$code/news');

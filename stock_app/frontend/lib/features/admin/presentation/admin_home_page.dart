@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import '../../stock/domain/app_session.dart';
+import '../../../core/api_config.dart';
 
 class AdminHomePage extends StatelessWidget {
   const AdminHomePage({super.key});
 
-  static const String baseUrl = 'http://127.0.0.1:8080';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   Future<void> _syncStocks(BuildContext context) async {
     try {

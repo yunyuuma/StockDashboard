@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../domain/company.dart';
+import '../../../core/api_config.dart';
 
 class StockApiRepository {
   StockApiRepository({
@@ -10,7 +11,7 @@ class StockApiRepository {
 
   final http.Client _client;
 
-  static const String baseUrl = 'http://localhost:8080';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   Future<List<Company>> fetchStocks({
     required int page,

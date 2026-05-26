@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 
 import '../domain/app_session.dart';
 import '../domain/company.dart';
+import '../../../core/api_config.dart';
 
 class FavoriteApiRepository {
   FavoriteApiRepository({
@@ -11,7 +12,7 @@ class FavoriteApiRepository {
 
   final http.Client _client;
 
-  static const String baseUrl = 'http://localhost:8080';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   Map<String, String> get _headers {
     return {

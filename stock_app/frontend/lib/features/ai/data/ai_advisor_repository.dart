@@ -7,6 +7,7 @@ import '../domain/ai_stock_advisor_models.dart';
 import '../domain/ai_portfolio_models.dart';
 import '../domain/ai_trading_review_models.dart';
 import '../domain/ai_chat_models.dart';
+import '../../../core/api_config.dart';
 
 class AiAdvisorRepository {
   AiAdvisorRepository({http.Client? client})
@@ -14,7 +15,7 @@ class AiAdvisorRepository {
 
   final http.Client _client;
 
-  static const String baseUrl = 'http://127.0.0.1:8080';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   Map<String, String> get _headers {
     return {

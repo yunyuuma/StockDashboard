@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../domain/stock_detail_models.dart';
+import '../../../core/api_config.dart';
 
 class StockDetailApiRepository {
   StockDetailApiRepository({
@@ -10,7 +11,7 @@ class StockDetailApiRepository {
 
   final http.Client _client;
 
-  static const String baseUrl = 'http://localhost:8080';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   Future<StockDetailSummary> fetchSummary(String code) async {
     final uri = Uri.parse('$baseUrl/api/stocks/$code');
