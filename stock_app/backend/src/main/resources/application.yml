@@ -1,14 +1,15 @@
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/stock_app?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Tokyo
-    username: root
-    password: password
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
   mail:
     host: smtp.gmail.com
     port: 587
-    username: gikiin67@gmail.com
-    password: qgbzmkdzkhgjbsfm
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
@@ -25,17 +26,17 @@ spring:
     show-sql: true
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
 app:
   jwt:
-    secret: your-256-bit-secret-key-must-be-at-least-32-characters-long
+    secret: ${JWT_SECRET}
     expiration: 86400000
     refresh-expiration: 604800000
-    issuer: your-app-name
+    issuer: stock-dashboard
 
 server:
-  port: 8080
+  port: ${PORT:8080}
   error:
     include-message: always
     include-binding-errors: always
@@ -48,5 +49,5 @@ logging:
 
 jquants:
   base-url: https://api.jquants.com/v2
-  api-key: romyjaC-GT5GY85mZ4uOaMBHyN0pxGgHBmi1JnEB7RM
+  api-key: ${JQUANTS_API_KEY}
   cache-minutes: 60

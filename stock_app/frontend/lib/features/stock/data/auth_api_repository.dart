@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../../../core/api_config.dart';
 
 class AuthResponse {
   final int userId;
@@ -76,7 +77,7 @@ class AuthApiRepository {
 
   final http.Client _client;
 
-  static const String baseUrl = 'http://localhost:8080';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   Future<AuthResponse> login({
     required String email,

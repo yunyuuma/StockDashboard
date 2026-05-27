@@ -7,10 +7,10 @@ import com.example.stockapp.entity.Stock;
 import com.example.stockapp.repository.CompanyProfileRepository;
 import com.example.stockapp.repository.StockRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -22,9 +22,9 @@ public class AdminCompanyProfileService {
 
     @Transactional(readOnly = true)
     public List<CompanyProfileAdminResponse> getAll() {
-        return stockRepository.findAll()
+        return stockRepository.findAll(PageRequest.of(0, 100))
+                .getContent()
                 .stream()
-                .sorted(Comparator.comparing(Stock::getCode))
                 .map(stock -> {
                     CompanyProfile profile = companyProfileRepository
                             .findByStockCode(stock.getCode())

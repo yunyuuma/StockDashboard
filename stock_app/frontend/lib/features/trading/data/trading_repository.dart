@@ -3,13 +3,14 @@ import 'package:http/http.dart' as http;
 
 import '../../stock/domain/app_session.dart';
 import '../domain/trading_models.dart';
+import '../../../core/api_config.dart';
 
 class TradingRepository {
   TradingRepository({http.Client? client}) : _client = client ?? http.Client();
 
   final http.Client _client;
 
-  static const String baseUrl = 'http://127.0.0.1:8080';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   Map<String, String> get _headers {
     return {
