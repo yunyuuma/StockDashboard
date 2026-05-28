@@ -4,6 +4,10 @@ spring:
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 30000
 
   mail:
     host: smtp.gmail.com
@@ -16,14 +20,14 @@ spring:
           auth: true
           starttls:
             enable: true
-          connectiontimeout: 10000
-          timeout: 10000
-          writetimeout: 10000
+          connectiontimeout: 30000
+          timeout: 30000
+          writetimeout: 30000
 
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -43,9 +47,11 @@ server:
 
 logging:
   level:
-    org.springframework.web: DEBUG
-    org.springframework.web.client.RestTemplate: DEBUG
-    com.example.stockapp: DEBUG
+    org.springframework.web: INFO
+    org.springframework.web.client.RestTemplate: INFO
+    com.example.stockapp: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
 
 jquants:
   base-url: https://api.jquants.com/v2
