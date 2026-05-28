@@ -1,6 +1,6 @@
 class ApiConfig {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8080',
+    defaultValue: 'https://stock-dashboard-api-disc.onrender.com',
   );
 }
